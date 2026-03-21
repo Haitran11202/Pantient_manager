@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   Table,
@@ -17,29 +17,27 @@ import {
   message,
   Empty,
   Tag,
-  Descriptions,
 } from 'antd';
-import { 
-  PlusOutlined, 
-  DeleteOutlined, 
-  EditOutlined, 
+import {
+  PlusOutlined,
+  DeleteOutlined,
+  EditOutlined,
   EyeOutlined,
   SaveOutlined,
   PrinterOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { api, InvoiceDto, ServiceDto, PatientDto } from '../api/client';
 
 const { TextArea } = Input;
 const { Title, Text } = Typography;
 
-// Service catalog interface
 interface ServiceItem {
   id: string;
   name: string;
   unitPrice: number;
 }
 
-// Service row in the table
 interface ServiceRow {
   key: string;
   serviceId: string;
@@ -49,129 +47,24 @@ interface ServiceRow {
   subtotal: number;
 }
 
-// Patient information
 interface PatientInfo {
   id: string;
   name: string;
   phone: string;
 }
 
-// Invoice interface
-interface Invoice {
-  id: string;
-  invoiceNumber: string;
-  date: string;
-  patient: PatientInfo;
-  services: ServiceRow[];
-  doctorNotes: string;
-  existingDebt: number;
-  amountPaid: number;
-  status: 'draft' | 'completed' | 'cancelled';
-}
-
-// Mock service catalog data
-const SERVICE_CATALOG: ServiceItem[] = [
-  { id: 'S001', name: 'Cạo vôi răng', unitPrice: 200000 },
-  { id: 'S002', name: 'Tẩy trắng răng', unitPrice: 3000000 },
-  { id: 'S003', name: 'Trám răng Composite', unitPrice: 350000 },
-  { id: 'S004', name: 'Điều trị tủy răng', unitPrice: 800000 },
-  { id: 'S005', name: 'Bọc răng sứ', unitPrice: 2500000 },
-  { id: 'S006', name: 'Nhổ răng', unitPrice: 300000 },
-  { id: 'S007', name: 'Chụp X-quang răng', unitPrice: 100000 },
-  { id: 'S008', name: 'Cấy ghép Implant', unitPrice: 20000000 },
-  { id: 'S009', name: 'Tư vấn niềng răng', unitPrice: 200000 },
-  { id: 'S010', name: 'Khám cấp cứu', unitPrice: 500000 },
-];
-
-// Mock patients data
-const MOCK_PATIENTS: PatientInfo[] = [
-  { id: 'P001', name: 'Nguyễn Văn An', phone: '+84 901 234 567' },
-  { id: 'P002', name: 'Trần Thị Bình', phone: '+84 902 345 678' },
-  { id: 'P003', name: 'Lê Minh Châu', phone: '+84 903 456 789' },
-  { id: 'P004', name: 'Phạm Hoàng Dũng', phone: '+84 904 567 890' },
-  { id: 'P005', name: 'Võ Thị Hương', phone: '+84 905 678 901' },
-];
-
-// Mock initial invoices
-const INITIAL_INVOICES: Invoice[] = [
-  {
-    id: 'INV001',
-    invoiceNumber: 'HD-2026-001',
-    date: '2026-03-10',
-    patient: MOCK_PATIENTS[0],
-    services: [
-      {
-        key: '1',
-        serviceId: 'S001',
-        serviceName: 'Cạo vôi răng',
-        quantity: 1,
-        unitPrice: 200000,
-        subtotal: 200000,
-      },
-      {
-        key: '2',
-        serviceId: 'S003',
-        serviceName: 'Trám răng Composite',
-        quantity: 2,
-        unitPrice: 350000,
-        subtotal: 700000,
-      },
-    ],
-    doctorNotes: 'Bệnh nhân có viêm lợi nhẹ, đã cạo vôi và trám 2 răng hàm.',
-    existingDebt: 0,
-    amountPaid: 900000,
-    status: 'completed',
-  },
-  {
-    id: 'INV002',
-    invoiceNumber: 'HD-2026-002',
-    date: '2026-03-11',
-    patient: MOCK_PATIENTS[1],
-    services: [
-      {
-        key: '1',
-        serviceId: 'S004',
-        serviceName: 'Điều trị tủy răng',
-        quantity: 1,
-        unitPrice: 800000,
-        subtotal: 800000,
-      },
-    ],
-    doctorNotes: 'Điều trị tủy răng số 6 hàm dưới bên phải. Cần tái khám sau 1 tuần.',
-    existingDebt: 500000,
-    amountPaid: 500000,
-    status: 'completed',
-  },
-  {
-    id: 'INV003',
-    invoiceNumber: 'HD-2026-003',
-    date: '2026-03-13',
-    patient: MOCK_PATIENTS[2],
-    services: [
-      {
-        key: '1',
-        serviceId: 'S008',
-        serviceName: 'Cấy ghép Implant',
-        quantity: 1,
-        unitPrice: 20000000,
-        subtotal: 20000000,
-      },
-    ],
-    doctorNotes: 'Cấy ghép Implant răng số 5. Lịch hẹn gắn răng sau 3 tháng.',
-    existingDebt: 0,
-    amountPaid: 10000000,
-    status: 'draft',
-  },
-];
+type Invoice = InvoiceDto;
 
 export const TreatmentInvoice: React.FC = () => {
-  const [invoices, setInvoices] = useState<Invoice[]>(INITIAL_INVOICES);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [patients, setPatients] = useState<PatientInfo[]>([]);
+  const [serviceCatalog, setServiceCatalog] = useState<ServiceItem[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
 
-  // Invoice form state
   const [selectedPatient, setSelectedPatient] = useState<PatientInfo | null>(null);
   const [serviceRows, setServiceRows] = useState<ServiceRow[]>([
     {
@@ -187,7 +80,34 @@ export const TreatmentInvoice: React.FC = () => {
   const [existingDebt, setExistingDebt] = useState<number>(0);
   const [amountPaid, setAmountPaid] = useState<number>(0);
 
-  // Format VND currency
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [invoiceData, patientData, serviceData] = await Promise.all([
+        api.getInvoices(),
+        api.getPatients(),
+        api.getServices(),
+      ]);
+
+      setInvoices(invoiceData);
+      setPatients(
+        patientData.map((p: PatientDto) => ({ id: p.id, name: p.fullName, phone: p.phoneNumber }))
+      );
+      setServiceCatalog(
+        serviceData.map((s: ServiceDto) => ({ id: s.serviceId, name: s.serviceName, unitPrice: s.unitPrice }))
+      );
+    } catch (error) {
+      message.error('Không tải được dữ liệu hóa đơn');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
   const formatVND = (amount: number): string => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
@@ -195,7 +115,6 @@ export const TreatmentInvoice: React.FC = () => {
     }).format(amount);
   };
 
-  // Get status tag
   const getStatusTag = (status: Invoice['status']) => {
     switch (status) {
       case 'completed':
@@ -209,7 +128,6 @@ export const TreatmentInvoice: React.FC = () => {
     }
   };
 
-  // Open modal for new invoice
   const handleNewInvoice = () => {
     setEditingInvoice(null);
     setIsViewMode(false);
@@ -231,7 +149,6 @@ export const TreatmentInvoice: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // Open modal for editing invoice
   const handleEditInvoice = (invoice: Invoice) => {
     setEditingInvoice(invoice);
     setIsViewMode(false);
@@ -248,7 +165,6 @@ export const TreatmentInvoice: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // Open modal for viewing invoice
   const handleViewInvoice = (invoice: Invoice) => {
     setEditingInvoice(invoice);
     setIsViewMode(true);
@@ -260,13 +176,17 @@ export const TreatmentInvoice: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // Delete invoice
-  const handleDeleteInvoice = (invoiceId: string) => {
-    setInvoices(invoices.filter((inv) => inv.id !== invoiceId));
-    message.success('Đã xóa hóa đơn thành công!');
+  const handleDeleteInvoice = async (invoiceId: string) => {
+    try {
+      await api.deleteInvoice(invoiceId);
+      message.success('Đã xóa hóa đơn thành công!');
+      await loadData();
+    } catch (error) {
+      message.error('Không xóa được hóa đơn');
+      console.error(error);
+    }
   };
 
-  // Add service row
   const handleAddRow = () => {
     const newRow: ServiceRow = {
       key: Date.now().toString(),
@@ -279,14 +199,12 @@ export const TreatmentInvoice: React.FC = () => {
     setServiceRows([...serviceRows, newRow]);
   };
 
-  // Delete service row
   const handleDeleteRow = (key: string) => {
     setServiceRows(serviceRows.filter((row) => row.key !== key));
   };
 
-  // Handle service selection change
   const handleServiceChange = (key: string, serviceId: string) => {
-    const service = SERVICE_CATALOG.find((s) => s.id === serviceId);
+    const service = serviceCatalog.find((s) => s.id === serviceId);
     if (service) {
       const updatedRows = serviceRows.map((row) =>
         row.key === key
@@ -303,7 +221,6 @@ export const TreatmentInvoice: React.FC = () => {
     }
   };
 
-  // Handle quantity change
   const handleQuantityChange = (key: string, quantity: number) => {
     const updatedRows = serviceRows.map((row) =>
       row.key === key
@@ -317,15 +234,13 @@ export const TreatmentInvoice: React.FC = () => {
     setServiceRows(updatedRows);
   };
 
-  // Handle patient selection
   const handlePatientChange = (patientId: string) => {
-    const patient = MOCK_PATIENTS.find((p) => p.id === patientId);
+    const patient = patients.find((p) => p.id === patientId);
     if (patient) {
       setSelectedPatient(patient);
     }
   };
 
-  // Calculate totals
   const totals = useMemo(() => {
     const servicesTotal = serviceRows.reduce((sum, row) => sum + row.subtotal, 0);
     const grandTotal = servicesTotal + existingDebt;
@@ -340,7 +255,6 @@ export const TreatmentInvoice: React.FC = () => {
     };
   }, [serviceRows, existingDebt, amountPaid]);
 
-  // Save invoice
   const handleSaveInvoice = async (status: Invoice['status']) => {
     try {
       await form.validateFields();
@@ -350,21 +264,21 @@ export const TreatmentInvoice: React.FC = () => {
         return;
       }
 
-      // Validate at least one service
       const validServices = serviceRows.filter((row) => row.serviceId !== '');
       if (validServices.length === 0) {
         message.error('Vui lòng chọn ít nhất một dịch vụ!');
         return;
       }
 
-      const newInvoice: Invoice = {
-        id: editingInvoice ? editingInvoice.id : `INV${Date.now()}`,
-        invoiceNumber: editingInvoice
-          ? editingInvoice.invoiceNumber
-          : `HD-${dayjs().format('YYYY')}-${String(invoices.length + 1).padStart(3, '0')}`,
+      const payload = {
+        patientId: selectedPatient.id,
         date: editingInvoice ? editingInvoice.date : dayjs().format('YYYY-MM-DD'),
-        patient: selectedPatient,
-        services: validServices,
+        services: validServices.map((item) => ({
+          serviceId: item.serviceId,
+          serviceName: item.serviceName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        })),
         doctorNotes,
         existingDebt,
         amountPaid,
@@ -372,21 +286,21 @@ export const TreatmentInvoice: React.FC = () => {
       };
 
       if (editingInvoice) {
-        setInvoices(invoices.map((inv) => (inv.id === editingInvoice.id ? newInvoice : inv)));
+        await api.updateInvoice(editingInvoice.id, payload);
         message.success('Đã cập nhật hóa đơn thành công!');
       } else {
-        setInvoices([newInvoice, ...invoices]);
+        await api.createInvoice(payload);
         message.success('Đã tạo hóa đơn mới thành công!');
       }
 
       setIsModalOpen(false);
       form.resetFields();
+      await loadData();
     } catch (error) {
       console.error('Validation failed:', error);
     }
   };
 
-  // Service table columns
   const serviceColumns = [
     {
       title: 'Tên Dịch Vụ',
@@ -404,7 +318,7 @@ export const TreatmentInvoice: React.FC = () => {
             onChange={(value) => handleServiceChange(record.key, value)}
             showSearch
             optionFilterProp="children"
-            options={SERVICE_CATALOG.map((service) => ({
+            options={serviceCatalog.map((service) => ({
               label: service.name,
               value: service.id,
             }))}
@@ -469,7 +383,6 @@ export const TreatmentInvoice: React.FC = () => {
         ]),
   ];
 
-  // Invoice list table columns
   const invoiceColumns = [
     {
       title: 'Số HĐ',
@@ -582,7 +495,6 @@ export const TreatmentInvoice: React.FC = () => {
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-[1400px] mx-auto">
-        {/* Header */}
         <div className="flex justify-between items-start mb-6">
           <div>
             <Title level={2}>Quản Lý Điều Trị & Hóa Đơn</Title>
@@ -600,7 +512,6 @@ export const TreatmentInvoice: React.FC = () => {
           </Button>
         </div>
 
-        {/* Invoice List */}
         <Card className="shadow-sm">
           {invoices.length === 0 ? (
             <Empty
@@ -613,6 +524,7 @@ export const TreatmentInvoice: React.FC = () => {
             </Empty>
           ) : (
             <Table
+              loading={loading}
               columns={invoiceColumns}
               dataSource={invoices}
               rowKey="id"
@@ -628,7 +540,6 @@ export const TreatmentInvoice: React.FC = () => {
           )}
         </Card>
 
-        {/* Invoice Modal */}
         <Modal
           title={
             <Space>
@@ -677,7 +588,6 @@ export const TreatmentInvoice: React.FC = () => {
           destroyOnClose
         >
           <Form form={form} layout="vertical">
-            {/* Patient Selection */}
             <Card className="mb-4" size="small">
               <Row gutter={16}>
                 <Col span={12}>
@@ -693,7 +603,7 @@ export const TreatmentInvoice: React.FC = () => {
                       disabled={isViewMode}
                       showSearch
                       optionFilterProp="children"
-                      options={MOCK_PATIENTS.map((patient) => ({
+                      options={patients.map((patient) => ({
                         label: `${patient.name} - ${patient.phone}`,
                         value: patient.id,
                       }))}
@@ -711,7 +621,6 @@ export const TreatmentInvoice: React.FC = () => {
               </Row>
             </Card>
 
-            {/* Services Table */}
             <Card className="mb-4" size="small">
               <div className="flex justify-between items-center mb-3">
                 <Text strong className="text-base">
@@ -748,9 +657,7 @@ export const TreatmentInvoice: React.FC = () => {
               />
             </Card>
 
-            {/* Financial Summary and Doctor Notes */}
             <Row gutter={16} className="mb-4">
-              {/* Left Column - Doctor Notes */}
               <Col xs={24} md={12}>
                 <Card title="Ghi Chú Bác Sĩ" size="small">
                   <TextArea
@@ -765,7 +672,6 @@ export const TreatmentInvoice: React.FC = () => {
                 </Card>
               </Col>
 
-              {/* Right Column - Financial Summary */}
               <Col xs={24} md={12}>
                 <Card title="Tổng Kết Tài Chính" size="small">
                   <Space orientation="vertical" size="middle" style={{ width: '100%' }}>

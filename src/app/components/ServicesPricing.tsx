@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Table,
   Button,
@@ -7,158 +7,51 @@ import {
   Space,
   Card,
   Typography,
-  Tag,
   Tooltip,
+  Modal,
+  Form,
+  InputNumber,
+  Popconfirm,
+  message,
 } from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,
   EditOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import type { TableColumnsType } from 'antd';
+import { api, ServiceDto } from '../api/client';
 
 const { Title, Text } = Typography;
 
-// Service interface
-interface Service {
-  id: string;
-  serviceId: string;
-  serviceName: string;
-  unitPrice: number;
-  description: string;
-  status: boolean;
-}
-
-// Mock data - Vietnamese dental services
-const INITIAL_SERVICES: Service[] = [
-  {
-    id: '1',
-    serviceId: 'DV001',
-    serviceName: 'Nhổ răng khôn',
-    unitPrice: 1500000,
-    description: 'Nhổ răng khôn mọc lệch, mọc ngầm hoặc gây đau',
-    status: true,
-  },
-  {
-    id: '2',
-    serviceId: 'DV002',
-    serviceName: 'Cạo vôi răng',
-    unitPrice: 200000,
-    description: 'Làm sạch cao răng và mảng bám trên bề mặt răng',
-    status: true,
-  },
-  {
-    id: '3',
-    serviceId: 'DV003',
-    serviceName: 'Trám răng Composite',
-    unitPrice: 350000,
-    description: 'Trám răng bằng vật liệu composite thẩm mỹ cao',
-    status: true,
-  },
-  {
-    id: '4',
-    serviceId: 'DV004',
-    serviceName: 'Điều trị tủy răng',
-    unitPrice: 800000,
-    description: 'Điều trị tủy răng bị viêm nhiễm hoặc chết tủy',
-    status: true,
-  },
-  {
-    id: '5',
-    serviceId: 'DV005',
-    serviceName: 'Bọc răng sứ',
-    unitPrice: 2500000,
-    description: 'Bọc răng sứ cao cấp, thẩm mỹ tự nhiên',
-    status: true,
-  },
-  {
-    id: '6',
-    serviceId: 'DV006',
-    serviceName: 'Niềng răng mắc cài kim loại',
-    unitPrice: 25000000,
-    description: 'Niềng răng chỉnh nha bằng mắc cài kim loại truyền thống',
-    status: true,
-  },
-  {
-    id: '7',
-    serviceId: 'DV007',
-    serviceName: 'Tẩy trắng răng',
-    unitPrice: 3000000,
-    description: 'Tẩy trắng răng công nghệ Laser Whitening',
-    status: true,
-  },
-  {
-    id: '8',
-    serviceId: 'DV008',
-    serviceName: 'Cấy ghép Implant',
-    unitPrice: 20000000,
-    description: 'Cấy ghép răng Implant titanium cao cấp',
-    status: true,
-  },
-  {
-    id: '9',
-    serviceId: 'DV009',
-    serviceName: 'Nhổ răng sữa',
-    unitPrice: 150000,
-    description: 'Nhổ răng sữa cho trẻ em an toàn, không đau',
-    status: true,
-  },
-  {
-    id: '10',
-    serviceId: 'DV010',
-    serviceName: 'Chụp X-quang răng',
-    unitPrice: 100000,
-    description: 'Chụp phim X-quang toàn cảnh hàm mặt',
-    status: true,
-  },
-  {
-    id: '11',
-    serviceId: 'DV011',
-    serviceName: 'Khám tổng quát răng miệng',
-    unitPrice: 100000,
-    description: 'Khám và tư vấn tình trạng răng miệng tổng quát',
-    status: true,
-  },
-  {
-    id: '12',
-    serviceId: 'DV012',
-    serviceName: 'Bọc răng sứ Titan',
-    unitPrice: 1800000,
-    description: 'Bọc răng sứ Titan bền chắc, giá cả phải chăng',
-    status: false,
-  },
-  {
-    id: '13',
-    serviceId: 'DV013',
-    serviceName: 'Phủ Fluoride cho trẻ em',
-    unitPrice: 150000,
-    description: 'Phủ Fluoride bảo vệ men răng cho trẻ em',
-    status: true,
-  },
-  {
-    id: '14',
-    serviceId: 'DV014',
-    serviceName: 'Hàn trám răng Amalgam',
-    unitPrice: 200000,
-    description: 'Hàn trám răng bằng hỗn hống Amalgam',
-    status: false,
-  },
-  {
-    id: '15',
-    serviceId: 'DV015',
-    serviceName: 'Làm cầu răng sứ',
-    unitPrice: 4500000,
-    description: 'Làm cầu răng sứ 3 răng, phục hồi răng mất',
-    status: true,
-  },
-];
+type Service = ServiceDto;
 
 export const ServicesPricing: React.FC = () => {
-  const [services, setServices] = useState<Service[]>(INITIAL_SERVICES);
+  const [services, setServices] = useState<Service[]>([]);
   const [searchText, setSearchText] = useState<string>('');
-  const [filteredServices, setFilteredServices] = useState<Service[]>(INITIAL_SERVICES);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingService, setEditingService] = useState<Service | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [form] = Form.useForm();
 
-  // Format VND currency
+  const loadServices = async () => {
+    try {
+      setLoading(true);
+      const data = await api.getServices();
+      setServices(data);
+    } catch (error) {
+      message.error('Không tải được danh sách dịch vụ');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadServices();
+  }, []);
+
   const formatVND = (amount: number): string => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
@@ -166,47 +59,82 @@ export const ServicesPricing: React.FC = () => {
     }).format(amount);
   };
 
-  // Handle search
-  const handleSearch = (value: string) => {
-    setSearchText(value);
-    const filtered = services.filter(
+  const filteredServices = useMemo(() => {
+    return services.filter(
       (service) =>
-        service.serviceName.toLowerCase().includes(value.toLowerCase()) ||
-        service.serviceId.toLowerCase().includes(value.toLowerCase()) ||
-        service.description.toLowerCase().includes(value.toLowerCase())
+        service.serviceName.toLowerCase().includes(searchText.toLowerCase()) ||
+        service.serviceId.toLowerCase().includes(searchText.toLowerCase()) ||
+        service.description.toLowerCase().includes(searchText.toLowerCase())
     );
-    setFilteredServices(filtered);
+  }, [services, searchText]);
+
+  const handleStatusToggle = async (service: Service, checked: boolean) => {
+    try {
+      await api.updateService(service.id, {
+        serviceId: service.serviceId,
+        serviceName: service.serviceName,
+        unitPrice: service.unitPrice,
+        description: service.description,
+        status: checked,
+      });
+      await loadServices();
+    } catch (error) {
+      message.error('Không cập nhật được trạng thái dịch vụ');
+      console.error(error);
+    }
   };
 
-  // Handle status toggle
-  const handleStatusToggle = (id: string, checked: boolean) => {
-    const updatedServices = services.map((service) =>
-      service.id === id ? { ...service, status: checked } : service
-    );
-    setServices(updatedServices);
-    setFilteredServices(
-      updatedServices.filter(
-        (service) =>
-          service.serviceName.toLowerCase().includes(searchText.toLowerCase()) ||
-          service.serviceId.toLowerCase().includes(searchText.toLowerCase()) ||
-          service.description.toLowerCase().includes(searchText.toLowerCase())
-      )
-    );
-  };
-
-  // Handle edit
   const handleEdit = (record: Service) => {
-    console.log('Edit service:', record);
-    // This would open an edit modal in a real application
+    setEditingService(record);
+    form.setFieldsValue(record);
+    setIsModalOpen(true);
   };
 
-  // Handle add new service
   const handleAddService = () => {
-    console.log('Add new service');
-    // This would open an add modal in a real application
+    setEditingService(null);
+    form.resetFields();
+    form.setFieldsValue({ status: true });
+    setIsModalOpen(true);
   };
 
-  // Table columns
+  const handleDelete = async (id: string) => {
+    try {
+      await api.deleteService(id);
+      message.success('Đã xóa dịch vụ');
+      await loadServices();
+    } catch (error) {
+      message.error('Không xóa được dịch vụ');
+      console.error(error);
+    }
+  };
+
+  const handleSaveService = async () => {
+    try {
+      const values = await form.validateFields();
+      const payload = {
+        serviceId: values.serviceId,
+        serviceName: values.serviceName,
+        unitPrice: values.unitPrice,
+        description: values.description,
+        status: values.status,
+      };
+
+      if (editingService) {
+        await api.updateService(editingService.id, payload);
+        message.success('Đã cập nhật dịch vụ');
+      } else {
+        await api.createService(payload);
+        message.success('Đã thêm dịch vụ mới');
+      }
+
+      setIsModalOpen(false);
+      form.resetFields();
+      await loadServices();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   const columns: TableColumnsType<Service> = [
     {
       title: 'Mã Dịch Vụ',
@@ -240,9 +168,7 @@ export const ServicesPricing: React.FC = () => {
       title: 'Mô Tả',
       dataIndex: 'description',
       key: 'description',
-      ellipsis: {
-        showTitle: false,
-      },
+      ellipsis: { showTitle: false },
       render: (description: string) => (
         <Tooltip placement="topLeft" title={description}>
           <Text type="secondary">{description}</Text>
@@ -264,7 +190,7 @@ export const ServicesPricing: React.FC = () => {
         <Space size="small">
           <Switch
             checked={status}
-            onChange={(checked) => handleStatusToggle(record.id, checked)}
+            onChange={(checked) => handleStatusToggle(record, checked)}
             checkedChildren="Hoạt động"
             unCheckedChildren="Tạm ngưng"
           />
@@ -274,17 +200,28 @@ export const ServicesPricing: React.FC = () => {
     {
       title: 'Thao Tác',
       key: 'actions',
-      width: 100,
+      width: 140,
       align: 'center',
       render: (_, record: Service) => (
-        <Tooltip title="Chỉnh sửa dịch vụ">
-          <Button
-            type="text"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-            className="text-blue-600"
-          />
-        </Tooltip>
+        <Space>
+          <Tooltip title="Chỉnh sửa dịch vụ">
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
+              className="text-blue-600"
+            />
+          </Tooltip>
+          <Popconfirm
+            title="Xác nhận xóa"
+            description="Bạn có chắc muốn xóa dịch vụ này?"
+            onConfirm={() => handleDelete(record.id)}
+            okText="Xóa"
+            cancelText="Hủy"
+          >
+            <Button type="text" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
@@ -292,7 +229,6 @@ export const ServicesPricing: React.FC = () => {
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-[1400px] mx-auto">
-        {/* Header */}
         <div className="mb-6">
           <Title level={2}>Quản Lý Dịch Vụ & Giá</Title>
           <Text type="secondary">
@@ -300,15 +236,13 @@ export const ServicesPricing: React.FC = () => {
           </Text>
         </div>
 
-        {/* Main Card */}
         <Card>
-          {/* Search and Add Button */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <Input
               placeholder="Tìm kiếm theo tên, mã dịch vụ hoặc mô tả..."
               prefix={<SearchOutlined />}
               value={searchText}
-              onChange={(e) => handleSearch(e.target.value)}
+              onChange={(e) => setSearchText(e.target.value)}
               style={{ width: '100%', maxWidth: 400 }}
               size="large"
               allowClear
@@ -323,7 +257,6 @@ export const ServicesPricing: React.FC = () => {
             </Button>
           </div>
 
-          {/* Statistics */}
           <div className="flex gap-6 mb-6">
             <div className="bg-blue-50 px-4 py-3 rounded-lg">
               <Text type="secondary" className="text-sm block">
@@ -351,8 +284,8 @@ export const ServicesPricing: React.FC = () => {
             </div>
           </div>
 
-          {/* Table */}
           <Table
+            loading={loading}
             columns={columns}
             dataSource={filteredServices}
             rowKey="id"
@@ -368,6 +301,36 @@ export const ServicesPricing: React.FC = () => {
             size="middle"
           />
         </Card>
+
+        <Modal
+          title={editingService ? 'Sửa Dịch Vụ' : 'Thêm Dịch Vụ'}
+          open={isModalOpen}
+          onOk={handleSaveService}
+          onCancel={() => {
+            setIsModalOpen(false);
+            form.resetFields();
+          }}
+          okText="Lưu"
+          cancelText="Hủy"
+        >
+          <Form form={form} layout="vertical">
+            <Form.Item name="serviceId" label="Mã Dịch Vụ" rules={[{ required: true, message: 'Vui lòng nhập mã dịch vụ' }]}>
+              <Input placeholder="VD: DV009" />
+            </Form.Item>
+            <Form.Item name="serviceName" label="Tên Dịch Vụ" rules={[{ required: true, message: 'Vui lòng nhập tên dịch vụ' }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="unitPrice" label="Đơn Giá" rules={[{ required: true, message: 'Vui lòng nhập đơn giá' }]}>
+              <InputNumber style={{ width: '100%' }} min={0} addonAfter="VND" />
+            </Form.Item>
+            <Form.Item name="description" label="Mô Tả" rules={[{ required: true, message: 'Vui lòng nhập mô tả' }]}>
+              <Input.TextArea rows={3} />
+            </Form.Item>
+            <Form.Item name="status" label="Trạng Thái" valuePropName="checked">
+              <Switch checkedChildren="Hoạt động" unCheckedChildren="Tạm ngưng" />
+            </Form.Item>
+          </Form>
+        </Modal>
       </div>
     </div>
   );

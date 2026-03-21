@@ -4,6 +4,7 @@ import { Modal, Form, Input, InputNumber, Row, Col } from 'antd';
 const { TextArea } = Input;
 
 export interface PatientFormData {
+  id?: string;
   fullName: string;
   phoneNumber: string;
   birthYear?: number;

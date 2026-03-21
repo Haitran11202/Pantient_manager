@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   Empty,
@@ -16,8 +16,8 @@ import {
   TimePicker,
   Select,
   message,
-  Popconfirm,
   Dropdown,
+  Spin,
 } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -36,170 +36,42 @@ import {
   FilterOutlined,
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
+import { api, AppointmentDto } from '../api/client';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
-// Appointment status type
 type AppointmentStatus = 'waiting' | 'completed' | 'cancelled';
-
-// Appointment interface
-interface Appointment {
-  id: string;
-  time: string;
-  patientName: string;
-  phone: string;
-  reason: string;
-  status: AppointmentStatus;
-  date: string; // YYYY-MM-DD format
-  notes?: string;
-}
-
-// Mock appointment data
-const INITIAL_APPOINTMENTS: Appointment[] = [
-  {
-    id: 'A001',
-    time: '08:00',
-    patientName: 'Nguyễn Thị Hoa',
-    phone: '+84 901 234 567',
-    reason: 'Khám tổng quát & Làm sạch răng',
-    status: 'completed',
-    date: '2026-03-17',
-    notes: 'Bệnh nhân đã hoàn thành khám.',
-  },
-  {
-    id: 'A002',
-    time: '09:00',
-    patientName: 'Trần Văn Minh',
-    phone: '+84 902 345 678',
-    reason: 'Đau răng - Răng hàm trên bên phải',
-    status: 'completed',
-    date: '2026-03-17',
-  },
-  {
-    id: 'A003',
-    time: '09:30',
-    patientName: 'Lê Thị Mai',
-    phone: '+84 903 456 789',
-    reason: 'Lắp răng sứ',
-    status: 'waiting',
-    date: '2026-03-17',
-  },
-  {
-    id: 'A004',
-    time: '10:30',
-    patientName: 'Phạm Quốc Tuấn',
-    phone: '+84 904 567 890',
-    reason: 'Điều trị tủy răng - Buổi 2',
-    status: 'waiting',
-    date: '2026-03-17',
-  },
-  {
-    id: 'A005',
-    time: '11:00',
-    patientName: 'Võ Thị Lan',
-    phone: '+84 905 678 901',
-    reason: 'Tư vấn tẩy trắng răng',
-    status: 'cancelled',
-    date: '2026-03-17',
-    notes: 'Bệnh nhân hủy do bận việc đột xuất.',
-  },
-  {
-    id: 'A006',
-    time: '14:00',
-    patientName: 'Đỗ Văn Hùng',
-    phone: '+84 906 789 012',
-    reason: 'Tái khám cấy ghép Implant',
-    status: 'waiting',
-    date: '2026-03-17',
-  },
-  {
-    id: 'A007',
-    time: '14:30',
-    patientName: 'Hoàng Thị Thu',
-    phone: '+84 907 890 123',
-    reason: 'Trám răng sâu - Răng hàm dưới trái',
-    status: 'waiting',
-    date: '2026-03-17',
-  },
-  {
-    id: 'A008',
-    time: '15:30',
-    patientName: 'Bùi Văn Nam',
-    phone: '+84 908 901 234',
-    reason: 'Cấp cứu - Răng bị gãy',
-    status: 'waiting',
-    date: '2026-03-17',
-  },
-  {
-    id: 'A009',
-    time: '16:00',
-    patientName: 'Ngô Thị Hằng',
-    phone: '+84 909 012 345',
-    reason: 'Điều chỉnh niềng răng',
-    status: 'waiting',
-    date: '2026-03-17',
-  },
-  {
-    id: 'A010',
-    time: '16:30',
-    patientName: 'Dương Văn Sơn',
-    phone: '+84 910 123 456',
-    reason: 'Chụp X-quang và tư vấn',
-    status: 'waiting',
-    date: '2026-03-17',
-  },
-  // Tomorrow's appointments
-  {
-    id: 'A011',
-    time: '09:00',
-    patientName: 'Trịnh Thị Bích',
-    phone: '+84 911 234 567',
-    reason: 'Nhổ răng khôn',
-    status: 'waiting',
-    date: '2026-03-18',
-  },
-  {
-    id: 'A012',
-    time: '10:00',
-    patientName: 'Lý Văn Đạt',
-    phone: '+84 912 345 678',
-    reason: 'Cạo vôi răng định kỳ',
-    status: 'waiting',
-    date: '2026-03-18',
-  },
-  // Yesterday's appointments
-  {
-    id: 'A013',
-    time: '15:00',
-    patientName: 'Mai Thị Lan',
-    phone: '+84 913 456 789',
-    reason: 'Lắp mão răng sứ',
-    status: 'completed',
-    date: '2026-03-16',
-  },
-  {
-    id: 'A014',
-    time: '16:00',
-    patientName: 'Vũ Văn Hải',
-    phone: '+84 914 567 890',
-    reason: 'Khám răng định kỳ',
-    status: 'completed',
-    date: '2026-03-16',
-  },
-];
+type Appointment = AppointmentDto;
 
 export const DailyAppointments: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
-  const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | 'all'>('all');
+  const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
 
-  // Get status tag configuration
+  const loadAppointments = async () => {
+    try {
+      setLoading(true);
+      const data = await api.getAppointments();
+      setAppointments(data);
+    } catch (error) {
+      message.error('Không tải được lịch hẹn');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAppointments();
+  }, []);
+
   const getStatusTag = (status: AppointmentStatus) => {
     switch (status) {
       case 'waiting':
@@ -213,18 +85,15 @@ export const DailyAppointments: React.FC = () => {
     }
   };
 
-  // Filter appointments by selected date
   const filteredByDate = useMemo(() => {
     return appointments.filter(
       (appointment) => appointment.date === selectedDate.format('YYYY-MM-DD')
     );
   }, [appointments, selectedDate]);
 
-  // Filter by search text and status
   const filteredAppointments = useMemo(() => {
     let filtered = filteredByDate;
 
-    // Filter by search text
     if (searchText) {
       const search = searchText.toLowerCase();
       filtered = filtered.filter(
@@ -235,16 +104,13 @@ export const DailyAppointments: React.FC = () => {
       );
     }
 
-    // Filter by status
     if (statusFilter !== 'all') {
       filtered = filtered.filter((apt) => apt.status === statusFilter);
     }
 
-    // Sort by time
     return filtered.sort((a, b) => a.time.localeCompare(b.time));
   }, [filteredByDate, searchText, statusFilter]);
 
-  // Calculate statistics
   const statistics = useMemo(() => {
     return {
       total: filteredByDate.length,
@@ -254,7 +120,6 @@ export const DailyAppointments: React.FC = () => {
     };
   }, [filteredByDate]);
 
-  // Handle new appointment
   const handleNewAppointment = () => {
     setEditingAppointment(null);
     setIsViewMode(false);
@@ -266,7 +131,6 @@ export const DailyAppointments: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // Handle edit appointment
   const handleEditAppointment = (appointment: Appointment) => {
     setEditingAppointment(appointment);
     setIsViewMode(false);
@@ -282,7 +146,6 @@ export const DailyAppointments: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // Handle view appointment
   const handleViewAppointment = (appointment: Appointment) => {
     setEditingAppointment(appointment);
     setIsViewMode(true);
@@ -298,20 +161,40 @@ export const DailyAppointments: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // Handle delete appointment
-  const handleDeleteAppointment = (id: string) => {
-    setAppointments(appointments.filter((apt) => apt.id !== id));
-    message.success('Đã xóa lịch hẹn thành công!');
+  const handleDeleteAppointment = async (id: string) => {
+    try {
+      await api.deleteAppointment(id);
+      message.success('Đã xóa lịch hẹn thành công!');
+      await loadAppointments();
+    } catch (error) {
+      message.error('Xóa lịch hẹn thất bại');
+      console.error(error);
+    }
   };
 
-  // Handle status change
-  const handleStatusChange = (id: string, newStatus: AppointmentStatus) => {
-    setAppointments(
-      appointments.map((apt) =>
-        apt.id === id ? { ...apt, status: newStatus } : apt
-      )
-    );
-    message.success(`Đã cập nhật trạng thái thành "${getStatusLabel(newStatus)}"`);
+  const handleStatusChange = async (id: string, newStatus: AppointmentStatus) => {
+    try {
+      const apt = appointments.find((item) => item.id === id);
+      if (!apt) {
+        return;
+      }
+
+      await api.updateAppointment(id, {
+        patientName: apt.patientName,
+        phone: apt.phone,
+        date: apt.date,
+        time: apt.time,
+        reason: apt.reason,
+        status: newStatus,
+        notes: apt.notes,
+      });
+
+      message.success(`Đã cập nhật trạng thái thành "${getStatusLabel(newStatus)}"`);
+      await loadAppointments();
+    } catch (error) {
+      message.error('Không cập nhật được trạng thái');
+      console.error(error);
+    }
   };
 
   const getStatusLabel = (status: AppointmentStatus) => {
@@ -325,13 +208,11 @@ export const DailyAppointments: React.FC = () => {
     }
   };
 
-  // Handle save appointment
   const handleSaveAppointment = async () => {
     try {
       const values = await form.validateFields();
-      
-      const appointmentData: Appointment = {
-        id: editingAppointment ? editingAppointment.id : `A${Date.now()}`,
+
+      const appointmentData = {
         patientName: values.patientName,
         phone: values.phone,
         date: values.date.format('YYYY-MM-DD'),
@@ -342,25 +223,21 @@ export const DailyAppointments: React.FC = () => {
       };
 
       if (editingAppointment) {
-        setAppointments(
-          appointments.map((apt) =>
-            apt.id === editingAppointment.id ? appointmentData : apt
-          )
-        );
+        await api.updateAppointment(editingAppointment.id, appointmentData);
         message.success('Đã cập nhật lịch hẹn thành công!');
       } else {
-        setAppointments([...appointments, appointmentData]);
+        await api.createAppointment(appointmentData);
         message.success('Đã tạo lịch hẹn mới thành công!');
       }
 
       setIsModalOpen(false);
       form.resetFields();
+      await loadAppointments();
     } catch (error) {
       console.error('Validation failed:', error);
     }
   };
 
-  // Get action menu items for each appointment
   const getActionMenu = (appointment: Appointment): MenuProps['items'] => [
     {
       key: 'view',
@@ -428,7 +305,6 @@ export const DailyAppointments: React.FC = () => {
   return (
     <div className="p-6">
       <div className="max-w-[1600px] mx-auto">
-        {/* Header */}
         <div className="mb-6">
           <div className="flex justify-between items-start mb-4">
             <div>
@@ -449,10 +325,8 @@ export const DailyAppointments: React.FC = () => {
             </Button>
           </div>
 
-          {/* Date Picker and Statistics */}
           <Card>
             <div className="flex flex-col gap-4">
-              {/* Date Picker and Filters */}
               <div className="flex flex-wrap gap-4 items-center">
                 <Space>
                   <Text strong>
@@ -494,7 +368,6 @@ export const DailyAppointments: React.FC = () => {
                 />
               </div>
 
-              {/* Statistics */}
               <Row gutter={16}>
                 <Col xs={12} sm={6}>
                   <Statistic
@@ -529,127 +402,122 @@ export const DailyAppointments: React.FC = () => {
           </Card>
         </div>
 
-        {/* Appointments List */}
-        {filteredAppointments.length === 0 ? (
-          <Card>
-            <Empty
-              description={
-                <span>
-                  {searchText || statusFilter !== 'all' ? (
-                    'Không tìm thấy lịch hẹn phù hợp'
-                  ) : (
-                    <>
-                      Không có lịch hẹn cho ngày{' '}
-                      <strong>{selectedDate.format('DD/MM/YYYY')}</strong>
-                    </>
-                  )}
-                </span>
-              }
-            >
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleNewAppointment}>
-                Đặt Lịch Hẹn
-              </Button>
-            </Empty>
-          </Card>
-        ) : (
-          <Row gutter={[16, 16]}>
-            {filteredAppointments.map((appointment) => (
-              <Col xs={24} sm={24} md={12} lg={8} xl={6} key={appointment.id}>
-                <Card
-                  hoverable
-                  className="h-full"
-                  styles={{ body: { padding: '20px' } }}
-                  variant="outlined"
-                >
-                  <Space orientation="vertical" size="middle" className="w-full">
-                    {/* Time and Status */}
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center">
-                        <ClockCircleOutlined className="text-blue-500 text-lg mr-2" />
-                        <Text strong className="text-lg">
-                          {appointment.time}
-                        </Text>
-                      </div>
-                      <div className="flex gap-2 items-center">
-                        {getStatusTag(appointment.status)}
-                        <Dropdown
-                          menu={{ items: getActionMenu(appointment) }}
-                          trigger={['click']}
-                          placement="bottomRight"
-                        >
-                          <Button
-                            type="text"
-                            icon={<MoreOutlined />}
-                            size="small"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </Dropdown>
-                      </div>
-                    </div>
-
-                    {/* Patient Name */}
-                    <div className="flex items-start">
-                      <UserOutlined className="text-gray-500 mt-1 mr-2" />
-                      <div className="flex-1">
-                        <Text strong className="block">
-                          {appointment.patientName}
-                        </Text>
-                        <div className="flex items-center mt-1">
-                          <PhoneOutlined className="text-gray-400 text-xs mr-1" />
-                          <Text type="secondary" className="text-sm">
-                            {appointment.phone}
+        <Spin spinning={loading}>
+          {filteredAppointments.length === 0 ? (
+            <Card>
+              <Empty
+                description={
+                  <span>
+                    {searchText || statusFilter !== 'all' ? (
+                      'Không tìm thấy lịch hẹn phù hợp'
+                    ) : (
+                      <>
+                        Không có lịch hẹn cho ngày{' '}
+                        <strong>{selectedDate.format('DD/MM/YYYY')}</strong>
+                      </>
+                    )}
+                  </span>
+                }
+              >
+                <Button type="primary" icon={<PlusOutlined />} onClick={handleNewAppointment}>
+                  Đặt Lịch Hẹn
+                </Button>
+              </Empty>
+            </Card>
+          ) : (
+            <Row gutter={[16, 16]}>
+              {filteredAppointments.map((appointment) => (
+                <Col xs={24} sm={24} md={12} lg={8} xl={6} key={appointment.id}>
+                  <Card
+                    hoverable
+                    className="h-full"
+                    styles={{ body: { padding: '20px' } }}
+                    variant="outlined"
+                  >
+                    <Space orientation="vertical" size="middle" className="w-full">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center">
+                          <ClockCircleOutlined className="text-blue-500 text-lg mr-2" />
+                          <Text strong className="text-lg">
+                            {appointment.time}
                           </Text>
                         </div>
+                        <div className="flex gap-2 items-center">
+                          {getStatusTag(appointment.status)}
+                          <Dropdown
+                            menu={{ items: getActionMenu(appointment) }}
+                            trigger={['click']}
+                            placement="bottomRight"
+                          >
+                            <Button
+                              type="text"
+                              icon={<MoreOutlined />}
+                              size="small"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </Dropdown>
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Reason */}
-                    <div className="bg-blue-50 p-3 rounded">
-                      <Text type="secondary" className="text-xs block mb-1">
-                        Lý do khám:
-                      </Text>
-                      <Text className="text-sm">{appointment.reason}</Text>
-                    </div>
+                      <div className="flex items-start">
+                        <UserOutlined className="text-gray-500 mt-1 mr-2" />
+                        <div className="flex-1">
+                          <Text strong className="block">
+                            {appointment.patientName}
+                          </Text>
+                          <div className="flex items-center mt-1">
+                            <PhoneOutlined className="text-gray-400 text-xs mr-1" />
+                            <Text type="secondary" className="text-sm">
+                              {appointment.phone}
+                            </Text>
+                          </div>
+                        </div>
+                      </div>
 
-                    {/* Notes if available */}
-                    {appointment.notes && (
-                      <div className="bg-yellow-50 p-2 rounded">
-                        <Text type="secondary" className="text-xs">
-                          Ghi chú: {appointment.notes}
+                      <div className="bg-blue-50 p-3 rounded">
+                        <Text type="secondary" className="text-xs block mb-1">
+                          Lý do khám:
                         </Text>
+                        <Text className="text-sm">{appointment.reason}</Text>
                       </div>
-                    )}
 
-                    {/* Action Buttons */}
-                    <div className="flex gap-2 pt-2">
-                      <Button
-                        size="small"
-                        icon={<EyeOutlined />}
-                        onClick={() => handleViewAppointment(appointment)}
-                        block
-                      >
-                        Xem
-                      </Button>
-                      {appointment.status === 'waiting' && (
+                      {appointment.notes && (
+                        <div className="bg-yellow-50 p-2 rounded">
+                          <Text type="secondary" className="text-xs">
+                            Ghi chú: {appointment.notes}
+                          </Text>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 pt-2">
                         <Button
                           size="small"
-                          type="primary"
-                          icon={<CheckCircleOutlined />}
-                          onClick={() => handleStatusChange(appointment.id, 'completed')}
+                          icon={<EyeOutlined />}
+                          onClick={() => handleViewAppointment(appointment)}
                           block
                         >
-                          Hoàn thành
+                          Xem
                         </Button>
-                      )}
-                    </div>
-                  </Space>
-                </Card>
-              </Col>
-            ))}
-          </Row>
-        )}
+                        {appointment.status === 'waiting' && (
+                          <Button
+                            size="small"
+                            type="primary"
+                            icon={<CheckCircleOutlined />}
+                            onClick={() => handleStatusChange(appointment.id, 'completed')}
+                            block
+                          >
+                            Hoàn thành
+                          </Button>
+                        )}
+                      </div>
+                    </Space>
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+          )}
+        </Spin>
 
-        {/* Appointment Modal */}
         <Modal
           title={
             <Space>

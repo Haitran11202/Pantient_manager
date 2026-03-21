@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Table,
   Button,
@@ -24,34 +24,11 @@ import {
 } from '@ant-design/icons';
 import type { TableColumnsType } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
+import { api, DebtDto, PaymentMethod } from '../api/client';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
-// Payment method type
-type PaymentMethod = 'cash' | 'bank_transfer' | 'credit_card';
-
-// Payment transaction interface
-interface PaymentTransaction {
-  id: string;
-  date: string;
-  amount: number;
-  method: PaymentMethod;
-  notes: string;
-}
-
-// Patient debt interface
-interface PatientDebt {
-  id: string;
-  patientName: string;
-  phoneNumber: string;
-  totalInvoiced: number;
-  totalPaid: number;
-  remainingDebt: number;
-  paymentHistory: PaymentTransaction[];
-}
-
-// Payment form values
 interface PaymentFormValues {
   paymentDate: Dayjs;
   amount: number;
@@ -59,167 +36,32 @@ interface PaymentFormValues {
   notes?: string;
 }
 
-// Mock data - Patients with debts and payment history
-const INITIAL_DEBTS: PatientDebt[] = [
-  {
-    id: '1',
-    patientName: 'Nguyễn Văn An',
-    phoneNumber: '+84 901 234 567',
-    totalInvoiced: 15000000,
-    totalPaid: 10000000,
-    remainingDebt: 5000000,
-    paymentHistory: [
-      {
-        id: 'P1-1',
-        date: '2026-02-15',
-        amount: 5000000,
-        method: 'bank_transfer',
-        notes: 'Thanh toán đợt 1',
-      },
-      {
-        id: 'P1-2',
-        date: '2026-03-01',
-        amount: 5000000,
-        method: 'cash',
-        notes: 'Thanh toán đợt 2',
-      },
-    ],
-  },
-  {
-    id: '2',
-    patientName: 'Trần Thị Bình',
-    phoneNumber: '+84 902 345 678',
-    totalInvoiced: 8000000,
-    totalPaid: 3000000,
-    remainingDebt: 5000000,
-    paymentHistory: [
-      {
-        id: 'P2-1',
-        date: '2026-02-20',
-        amount: 3000000,
-        method: 'credit_card',
-        notes: 'Thanh toán ban đầu',
-      },
-    ],
-  },
-  {
-    id: '3',
-    patientName: 'Lê Minh Châu',
-    phoneNumber: '+84 903 456 789',
-    totalInvoiced: 25000000,
-    totalPaid: 15000000,
-    remainingDebt: 10000000,
-    paymentHistory: [
-      {
-        id: 'P3-1',
-        date: '2026-01-10',
-        amount: 10000000,
-        method: 'bank_transfer',
-        notes: 'Thanh toán lần 1 - Niềng răng',
-      },
-      {
-        id: 'P3-2',
-        date: '2026-02-10',
-        amount: 5000000,
-        method: 'bank_transfer',
-        notes: 'Thanh toán lần 2 - Niềng răng',
-      },
-    ],
-  },
-  {
-    id: '4',
-    patientName: 'Phạm Hoàng Dũng',
-    phoneNumber: '+84 904 567 890',
-    totalInvoiced: 20000000,
-    totalPaid: 20000000,
-    remainingDebt: 0,
-    paymentHistory: [
-      {
-        id: 'P4-1',
-        date: '2026-02-05',
-        amount: 20000000,
-        method: 'bank_transfer',
-        notes: 'Thanh toán đầy đủ - Cấy ghép Implant',
-      },
-    ],
-  },
-  {
-    id: '5',
-    patientName: 'Võ Thị Hương',
-    phoneNumber: '+84 905 678 901',
-    totalInvoiced: 12000000,
-    totalPaid: 6000000,
-    remainingDebt: 6000000,
-    paymentHistory: [
-      {
-        id: 'P5-1',
-        date: '2026-02-25',
-        amount: 6000000,
-        method: 'cash',
-        notes: 'Thanh toán 50% trước',
-      },
-    ],
-  },
-  {
-    id: '6',
-    patientName: 'Đỗ Văn Em',
-    phoneNumber: '+84 906 789 012',
-    totalInvoiced: 4500000,
-    totalPaid: 1500000,
-    remainingDebt: 3000000,
-    paymentHistory: [
-      {
-        id: 'P6-1',
-        date: '2026-03-05',
-        amount: 1500000,
-        method: 'cash',
-        notes: 'Đặt cọc làm răng sứ',
-      },
-    ],
-  },
-  {
-    id: '7',
-    patientName: 'Hoàng Thị Giang',
-    phoneNumber: '+84 907 890 123',
-    totalInvoiced: 7500000,
-    totalPaid: 2500000,
-    remainingDebt: 5000000,
-    paymentHistory: [
-      {
-        id: 'P7-1',
-        date: '2026-02-28',
-        amount: 2500000,
-        method: 'credit_card',
-        notes: 'Thanh toán một phần điều trị tủy',
-      },
-    ],
-  },
-  {
-    id: '8',
-    patientName: 'Bùi Minh Hoàng',
-    phoneNumber: '+84 908 901 234',
-    totalInvoiced: 3500000,
-    totalPaid: 500000,
-    remainingDebt: 3000000,
-    paymentHistory: [
-      {
-        id: 'P8-1',
-        date: '2026-03-08',
-        amount: 500000,
-        method: 'cash',
-        notes: 'Thanh toán tạm ứng',
-      },
-    ],
-  },
-];
+type PatientDebt = DebtDto;
 
 export const DebtPaymentManagement: React.FC = () => {
-  const [debts, setDebts] = useState<PatientDebt[]>(INITIAL_DEBTS);
+  const [debts, setDebts] = useState<PatientDebt[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientDebt | null>(null);
+  const [loading, setLoading] = useState(false);
   const [form] = Form.useForm<PaymentFormValues>();
 
-  // Format VND currency
+  const loadDebts = async () => {
+    try {
+      setLoading(true);
+      const data = await api.getDebts();
+      setDebts(data);
+    } catch (error) {
+      message.error('Không tải được dữ liệu công nợ');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDebts();
+  }, []);
+
   const formatVND = (amount: number): string => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
@@ -227,7 +69,6 @@ export const DebtPaymentManagement: React.FC = () => {
     }).format(amount);
   };
 
-  // Get payment method label
   const getPaymentMethodLabel = (method: PaymentMethod): string => {
     const labels: Record<PaymentMethod, string> = {
       cash: 'Tiền mặt',
@@ -237,7 +78,6 @@ export const DebtPaymentManagement: React.FC = () => {
     return labels[method];
   };
 
-  // Handle receive payment click
   const handleReceivePayment = (patient: PatientDebt) => {
     setSelectedPatient(patient);
     setIsModalOpen(true);
@@ -249,14 +89,12 @@ export const DebtPaymentManagement: React.FC = () => {
     });
   };
 
-  // Handle payment submission
   const handlePaymentSubmit = async () => {
     try {
       const values = await form.validateFields();
-      
+
       if (!selectedPatient) return;
 
-      // Validate payment amount
       if (values.amount <= 0) {
         message.error('Số tiền thanh toán phải lớn hơn 0');
         return;
@@ -267,56 +105,35 @@ export const DebtPaymentManagement: React.FC = () => {
         return;
       }
 
-      // Create new payment transaction
-      const newTransaction: PaymentTransaction = {
-        id: `P${selectedPatient.id}-${selectedPatient.paymentHistory.length + 1}`,
-        date: values.paymentDate.format('YYYY-MM-DD'),
+      await api.createPayment(selectedPatient.id, {
+        paymentDate: values.paymentDate.format('YYYY-MM-DD'),
         amount: values.amount,
-        method: values.paymentMethod,
-        notes: values.notes || '',
-      };
-
-      // Update debts
-      const updatedDebts = debts.map((debt) => {
-        if (debt.id === selectedPatient.id) {
-          const newTotalPaid = debt.totalPaid + values.amount;
-          const newRemainingDebt = debt.totalInvoiced - newTotalPaid;
-          
-          return {
-            ...debt,
-            totalPaid: newTotalPaid,
-            remainingDebt: newRemainingDebt,
-            paymentHistory: [...debt.paymentHistory, newTransaction],
-          };
-        }
-        return debt;
+        paymentMethod: values.paymentMethod,
+        notes: values.notes,
       });
 
-      setDebts(updatedDebts);
       setIsModalOpen(false);
       setSelectedPatient(null);
       form.resetFields();
-      
+      await loadDebts();
+
       message.success(`Đã ghi nhận thanh toán ${formatVND(values.amount)} thành công!`);
     } catch (error) {
       console.error('Validation failed:', error);
     }
   };
 
-  // Calculate statistics
   const statistics = useMemo(() => {
     const totalDebt = debts.reduce((sum, debt) => sum + debt.remainingDebt, 0);
     const totalInvoiced = debts.reduce((sum, debt) => sum + debt.totalInvoiced, 0);
     const totalPaid = debts.reduce((sum, debt) => sum + debt.totalPaid, 0);
     const patientsWithDebt = debts.filter((debt) => debt.remainingDebt > 0).length;
-    
+
     return { totalDebt, totalInvoiced, totalPaid, patientsWithDebt };
   }, [debts]);
 
-  // Filter only patients with outstanding debt
   const patientsWithDebt = debts.filter((debt) => debt.remainingDebt > 0);
 
-  // Table columns
   const columns: TableColumnsType<PatientDebt> = [
     {
       title: 'Tên Bệnh Nhân',
@@ -385,7 +202,6 @@ export const DebtPaymentManagement: React.FC = () => {
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-[1400px] mx-auto">
-        {/* Header */}
         <div className="mb-6">
           <Title level={2}>Quản Lý Công Nợ & Thanh Toán</Title>
           <Text type="secondary">
@@ -393,7 +209,6 @@ export const DebtPaymentManagement: React.FC = () => {
           </Text>
         </div>
 
-        {/* Statistics */}
         <Row gutter={16} className="mb-6">
           <Col xs={24} sm={12} lg={6}>
             <Card>
@@ -441,9 +256,9 @@ export const DebtPaymentManagement: React.FC = () => {
           </Col>
         </Row>
 
-        {/* Debt List Table */}
         <Card title="Danh Sách Công Nợ" className="shadow-sm">
           <Table
+            loading={loading}
             columns={columns}
             dataSource={patientsWithDebt}
             rowKey="id"
@@ -459,7 +274,6 @@ export const DebtPaymentManagement: React.FC = () => {
           />
         </Card>
 
-        {/* Payment Modal */}
         <Modal
           title={
             <Space>
@@ -589,7 +403,6 @@ export const DebtPaymentManagement: React.FC = () => {
             </Form.Item>
           </Form>
 
-          {/* Payment History */}
           {selectedPatient && selectedPatient.paymentHistory.length > 0 && (
             <div className="mt-6 border-t pt-4">
               <Text strong className="block mb-3">
@@ -599,7 +412,7 @@ export const DebtPaymentManagement: React.FC = () => {
                 {selectedPatient.paymentHistory
                   .slice()
                   .reverse()
-                  .map((payment, index) => (
+                  .map((payment) => (
                     <div
                       key={payment.id}
                       className="flex justify-between items-center p-3 bg-gray-50 rounded"
