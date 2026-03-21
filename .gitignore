@@ -40,3 +40,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# API binaries
+backend/PatientManage.Api/**/*.dll
+
