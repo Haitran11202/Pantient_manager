@@ -100,20 +100,79 @@ export interface DashboardSummaryDto {
   }>;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://patientmanage-api.onrender.com';
+export interface LoginResponseDto {
+  token: string;
+  tokenType: string;
+  username: string;
+  fullName: string;
+}
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+export class ApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://patientmanage-api.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:7143';
+const TOKEN_STORAGE_KEY = 'pm_access_token';
+
+export const authStorage = {
+  getToken: () => localStorage.getItem(TOKEN_STORAGE_KEY),
+  setToken: (token: string) => localStorage.setItem(TOKEN_STORAGE_KEY, token),
+  clearToken: () => localStorage.removeItem(TOKEN_STORAGE_KEY),
+};
+
+type RequestOptions = RequestInit & { includeAuth?: boolean };
+
+function createHeaders(options?: RequestOptions): HeadersInit {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (options?.headers) {
+    Object.assign(headers, options.headers as Record<string, string>);
+  }
+
+  const shouldAttachAuth = options?.includeAuth ?? true;
+  if (shouldAttachAuth) {
+    const token = authStorage.getToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+  }
+
+  return headers;
+}
+
+function parseErrorMessage(rawText: string, status: number): string {
+  if (!rawText) {
+    return `Request failed: ${status}`;
+  }
+
+  try {
+    const parsed = JSON.parse(rawText) as { message?: string; title?: string };
+    return parsed.message || parsed.title || rawText;
+  } catch {
+    return rawText;
+  }
+}
+
+async function request<T>(path: string, options?: RequestOptions): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options?.headers || {}),
-    },
+    headers: createHeaders(options),
     ...options,
   });
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `Request failed: ${response.status}`);
+
+    if (response.status === 401) {
+      authStorage.clearToken();
+    }
+
+    throw new ApiError(parseErrorMessage(text, response.status), response.status);
   }
 
   if (response.status === 204) {
@@ -124,6 +183,13 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  login: (payload: { username: string; password: string }) =>
+    request<LoginResponseDto>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      includeAuth: false,
+    }),
+
   getPatients: () => request<PatientDto[]>('/api/patients'),
   createPatient: (payload: Omit<PatientDto, 'id'>) => request<PatientDto>('/api/patients', { method: 'POST', body: JSON.stringify(payload) }),
   updatePatient: (id: string, payload: Omit<PatientDto, 'id'>) => request<PatientDto>(`/api/patients/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
@@ -171,10 +237,20 @@ export const api = {
     if (fromDate) params.set('fromDate', fromDate);
     if (toDate) params.set('toDate', toDate);
 
-    const response = await fetch(`${API_BASE_URL}/api/reports/revenue/excel?${params.toString()}`);
+    const token = authStorage.getToken();
+
+    const response = await fetch(`${API_BASE_URL}/api/reports/revenue/excel?${params.toString()}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(text || 'Không thể xuất báo cáo doanh thu');
+
+      if (response.status === 401) {
+        authStorage.clearToken();
+      }
+
+      throw new ApiError(parseErrorMessage(text, response.status), response.status);
     }
 
     return response.blob();
