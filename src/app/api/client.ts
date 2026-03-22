@@ -100,7 +100,7 @@ export interface DashboardSummaryDto {
   }>;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5200';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://patientmanage-api.onrender.com';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
