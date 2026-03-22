@@ -114,8 +114,8 @@ export class ApiError extends Error {
   }
 }
 
-// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://patientmanage-api.onrender.com';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:7143';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://patientmanage-api.onrender.com';
+// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:7143';
 const TOKEN_STORAGE_KEY = 'pm_access_token';
 
 export const authStorage = {
