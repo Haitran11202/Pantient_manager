@@ -64,6 +64,7 @@ export const TreatmentInvoice: React.FC = () => {
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingPatients, setLoadingPatients] = useState(false);
+  const [submittingInvoice, setSubmittingInvoice] = useState(false);
   const [form] = Form.useForm();
 
   const [selectedPatient, setSelectedPatient] = useState<PatientInfo | null>(null);
@@ -302,7 +303,12 @@ export const TreatmentInvoice: React.FC = () => {
   }, [serviceRows, existingDebt, amountPaid]);
 
   const handleSaveInvoice = async (status: Invoice['status']) => {
+    if (submittingInvoice) {
+      return;
+    }
+
     try {
+      setSubmittingInvoice(true);
       await form.validateFields();
 
       if (!selectedPatient) {
@@ -344,6 +350,8 @@ export const TreatmentInvoice: React.FC = () => {
       await loadData();
     } catch (error) {
       console.error('Validation failed:', error);
+    } finally {
+      setSubmittingInvoice(false);
     }
   };
 
@@ -607,10 +615,16 @@ export const TreatmentInvoice: React.FC = () => {
           }
           open={isModalOpen}
           onCancel={() => {
+            if (submittingInvoice) {
+              return;
+            }
             setIsModalOpen(false);
             form.resetFields();
           }}
           width={1000}
+          maskClosable={!submittingInvoice}
+          keyboard={!submittingInvoice}
+          closable={!submittingInvoice}
           footer={
             isViewMode ? (
               <Space>
@@ -619,12 +633,18 @@ export const TreatmentInvoice: React.FC = () => {
               </Space>
             ) : (
               <Space>
-                <Button onClick={() => setIsModalOpen(false)}>Hủy</Button>
-                <Button onClick={() => handleSaveInvoice('draft')}>Lưu Nháp</Button>
+                <Button onClick={() => setIsModalOpen(false)} disabled={submittingInvoice}>
+                  Hủy
+                </Button>
+                <Button onClick={() => handleSaveInvoice('draft')} loading={submittingInvoice} disabled={submittingInvoice}>
+                  Lưu Nháp
+                </Button>
                 <Button
                   type="primary"
                   icon={<SaveOutlined />}
                   onClick={() => handleSaveInvoice('completed')}
+                  loading={submittingInvoice}
+                  disabled={submittingInvoice}
                 >
                   Lưu & Hoàn Thành
                 </Button>
