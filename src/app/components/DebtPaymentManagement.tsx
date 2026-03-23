@@ -44,6 +44,7 @@ export const DebtPaymentManagement: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientDebt | null>(null);
   const [loading, setLoading] = useState(false);
+  const [submittingPayment, setSubmittingPayment] = useState(false);
   const [form] = Form.useForm<PaymentFormValues>();
 
   const loadDebts = async () => {
@@ -91,10 +92,25 @@ export const DebtPaymentManagement: React.FC = () => {
   };
 
   const handlePaymentSubmit = async () => {
+    if (submittingPayment) {
+      return;
+    }
+
     try {
+      setSubmittingPayment(true);
+      message.open({
+        key: 'payment-submit',
+        type: 'loading',
+        content: 'Đang ghi nhận thanh toán...',
+        duration: 0,
+      });
+
       const values = await form.validateFields();
 
-      if (!selectedPatient) return;
+      if (!selectedPatient) {
+        message.destroy('payment-submit');
+        return;
+      }
 
       if (values.amount <= 0) {
         message.error('Số tiền thanh toán phải lớn hơn 0');
@@ -118,9 +134,16 @@ export const DebtPaymentManagement: React.FC = () => {
       form.resetFields();
       await loadDebts();
 
-      message.success(`Đã ghi nhận thanh toán ${formatVND(values.amount)} thành công!`);
+      message.open({
+        key: 'payment-submit',
+        type: 'success',
+        content: `Đã ghi nhận thanh toán ${formatVND(values.amount)} thành công!`,
+      });
     } catch (error) {
       console.error('Validation failed:', error);
+      message.destroy('payment-submit');
+    } finally {
+      setSubmittingPayment(false);
     }
   };
 
@@ -295,6 +318,9 @@ export const DebtPaymentManagement: React.FC = () => {
           open={isModalOpen}
           onOk={handlePaymentSubmit}
           onCancel={() => {
+            if (submittingPayment) {
+              return;
+            }
             setIsModalOpen(false);
             setSelectedPatient(null);
             form.resetFields();
@@ -302,6 +328,11 @@ export const DebtPaymentManagement: React.FC = () => {
           okText="Ghi Nhận"
           cancelText="Hủy"
           width={600}
+          confirmLoading={submittingPayment}
+          maskClosable={!submittingPayment}
+          keyboard={!submittingPayment}
+          closable={!submittingPayment}
+          cancelButtonProps={{ disabled: submittingPayment }}
           destroyOnHidden
         >
           {selectedPatient && (
