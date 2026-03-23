@@ -179,7 +179,24 @@ async function request<T>(path: string, options?: RequestOptions): Promise<T> {
     return undefined as T;
   }
 
-  return (await response.json()) as T;
+  const contentLength = response.headers.get('content-length');
+  const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+
+  // Some endpoints return 200/201 with an empty body.
+  // Treat those responses as successful "void" payloads instead of throwing on JSON parse.
+  if (contentLength === '0') {
+    return undefined as T;
+  }
+
+  if (contentType.includes('application/json')) {
+    const text = await response.text();
+    if (!text.trim()) {
+      return undefined as T;
+    }
+    return JSON.parse(text) as T;
+  }
+
+  return undefined as T;
 }
 
 export const api = {
@@ -256,3 +273,4 @@ export const api = {
     return response.blob();
   },
 };
+
