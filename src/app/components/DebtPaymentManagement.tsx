@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Table,
   Button,
@@ -45,6 +45,7 @@ export const DebtPaymentManagement: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<PatientDebt | null>(null);
   const [loading, setLoading] = useState(false);
   const [submittingPayment, setSubmittingPayment] = useState(false);
+  const paymentSubmitLockRef = useRef(false);
   const [form] = Form.useForm<PaymentFormValues>();
 
   const loadDebts = async () => {
@@ -81,6 +82,7 @@ export const DebtPaymentManagement: React.FC = () => {
   };
 
   const handleReceivePayment = (patient: PatientDebt) => {
+    paymentSubmitLockRef.current = false;
     setSelectedPatient(patient);
     setIsModalOpen(true);
     form.resetFields();
@@ -92,11 +94,12 @@ export const DebtPaymentManagement: React.FC = () => {
   };
 
   const handlePaymentSubmit = async () => {
-    if (submittingPayment) {
+    if (submittingPayment || paymentSubmitLockRef.current) {
       return;
     }
 
     try {
+      paymentSubmitLockRef.current = true;
       setSubmittingPayment(true);
       message.open({
         key: 'payment-submit',
@@ -129,20 +132,27 @@ export const DebtPaymentManagement: React.FC = () => {
         notes: values.notes,
       });
 
+      // Close immediately after successful payment to prevent re-submission.
       setIsModalOpen(false);
       setSelectedPatient(null);
       form.resetFields();
-      await loadDebts();
 
       message.open({
         key: 'payment-submit',
         type: 'success',
         content: `Đã ghi nhận thanh toán ${formatVND(values.amount)} thành công!`,
       });
+
+      await loadDebts();
     } catch (error) {
-      console.error('Validation failed:', error);
-      message.destroy('payment-submit');
+      console.error('Payment submit failed:', error);
+      message.open({
+        key: 'payment-submit',
+        type: 'error',
+        content: 'Không thể ghi nhận thanh toán. Vui lòng thử lại.',
+      });
     } finally {
+      paymentSubmitLockRef.current = false;
       setSubmittingPayment(false);
     }
   };
@@ -332,6 +342,7 @@ export const DebtPaymentManagement: React.FC = () => {
           maskClosable={!submittingPayment}
           keyboard={!submittingPayment}
           closable={!submittingPayment}
+          okButtonProps={{ disabled: submittingPayment || !selectedPatient }}
           cancelButtonProps={{ disabled: submittingPayment }}
           destroyOnHidden
         >
