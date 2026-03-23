@@ -63,6 +63,7 @@ export const TreatmentInvoice: React.FC = () => {
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingPatients, setLoadingPatients] = useState(false);
   const [form] = Form.useForm();
 
   const [selectedPatient, setSelectedPatient] = useState<PatientInfo | null>(null);
@@ -83,16 +84,9 @@ export const TreatmentInvoice: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [invoiceData, patientData, serviceData] = await Promise.all([
-        api.getInvoices(),
-        api.getPatients(),
-        api.getServices(),
-      ]);
+      const [invoiceData, serviceData] = await Promise.all([api.getInvoices(), api.getServices()]);
 
       setInvoices(invoiceData);
-      setPatients(
-        patientData.map((p: PatientDto) => ({ id: p.id, name: p.fullName, phone: p.phoneNumber }))
-      );
       setServiceCatalog(
         serviceData.map((s: ServiceDto) => ({ id: s.serviceId, name: s.serviceName, unitPrice: s.unitPrice }))
       );
@@ -104,9 +98,47 @@ export const TreatmentInvoice: React.FC = () => {
     }
   };
 
+  const refreshPatients = async () => {
+    try {
+      setLoadingPatients(true);
+      const patientData = await api.getPatients();
+      const mappedPatients = patientData.map((patient: PatientDto) => ({
+        id: patient.id,
+        name: patient.fullName,
+        phone: patient.phoneNumber,
+      }));
+      setPatients(mappedPatients);
+      return mappedPatients;
+    } catch (error) {
+      message.error('Không tải được danh sách bệnh nhân');
+      console.error(error);
+      return null;
+    } finally {
+      setLoadingPatients(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!selectedPatient) {
+      return;
+    }
+
+    const nextSelected = patients.find((patient) => patient.id === selectedPatient.id);
+    if (!nextSelected) {
+      return;
+    }
+
+    if (
+      nextSelected.name !== selectedPatient.name ||
+      nextSelected.phone !== selectedPatient.phone
+    ) {
+      setSelectedPatient(nextSelected);
+    }
+  }, [patients, selectedPatient, form]);
 
   const formatVND = (amount: number): string => {
     return new Intl.NumberFormat('vi-VN', {
@@ -128,7 +160,8 @@ export const TreatmentInvoice: React.FC = () => {
     }
   };
 
-  const handleNewInvoice = () => {
+  const handleNewInvoice = async () => {
+    await refreshPatients();
     setEditingInvoice(null);
     setIsViewMode(false);
     setSelectedPatient(null);
@@ -149,30 +182,43 @@ export const TreatmentInvoice: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleEditInvoice = (invoice: Invoice) => {
+  const handleEditInvoice = async (invoice: Invoice) => {
+    const latestPatients = await refreshPatients();
+    const selected =
+      latestPatients?.find((patient) => patient.id === invoice.patient.id) ?? invoice.patient;
+
     setEditingInvoice(invoice);
     setIsViewMode(false);
-    setSelectedPatient(invoice.patient);
+    setSelectedPatient(selected);
     setServiceRows(invoice.services);
     setDoctorNotes(invoice.doctorNotes);
     setExistingDebt(invoice.existingDebt);
     setAmountPaid(invoice.amountPaid);
     form.setFieldsValue({
-      patientId: invoice.patient.id,
+      patientId: selected.id,
       existingDebt: invoice.existingDebt,
       amountPaid: invoice.amountPaid,
     });
     setIsModalOpen(true);
   };
 
-  const handleViewInvoice = (invoice: Invoice) => {
+  const handleViewInvoice = async (invoice: Invoice) => {
+    const latestPatients = await refreshPatients();
+    const selected =
+      latestPatients?.find((patient) => patient.id === invoice.patient.id) ?? invoice.patient;
+
     setEditingInvoice(invoice);
     setIsViewMode(true);
-    setSelectedPatient(invoice.patient);
+    setSelectedPatient(selected);
     setServiceRows(invoice.services);
     setDoctorNotes(invoice.doctorNotes);
     setExistingDebt(invoice.existingDebt);
     setAmountPaid(invoice.amountPaid);
+    form.setFieldsValue({
+      patientId: selected.id,
+      existingDebt: invoice.existingDebt,
+      amountPaid: invoice.amountPaid,
+    });
     setIsModalOpen(true);
   };
 
@@ -601,6 +647,7 @@ export const TreatmentInvoice: React.FC = () => {
                       size="large"
                       onChange={handlePatientChange}
                       disabled={isViewMode}
+                      loading={loadingPatients}
                       showSearch
                       optionFilterProp="children"
                       options={patients.map((patient) => ({
