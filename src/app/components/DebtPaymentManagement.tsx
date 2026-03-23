@@ -21,6 +21,7 @@ import {
   DollarOutlined,
   CreditCardOutlined,
   HistoryOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import type { TableColumnsType } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
@@ -132,8 +133,6 @@ export const DebtPaymentManagement: React.FC = () => {
     return { totalDebt, totalInvoiced, totalPaid, patientsWithDebt };
   }, [debts]);
 
-  const patientsWithDebt = debts.filter((debt) => debt.remainingDebt > 0);
-
   const columns: TableColumnsType<PatientDebt> = [
     {
       title: 'Tên Bệnh Nhân',
@@ -177,7 +176,10 @@ export const DebtPaymentManagement: React.FC = () => {
       width: 180,
       sorter: (a, b) => a.remainingDebt - b.remainingDebt,
       render: (amount: number) => (
-        <Text strong className="text-red-600 text-base">
+        <Text
+          strong
+          className={amount > 0 ? 'text-red-600 text-base' : 'text-gray-500 text-base'}
+        >
           {formatVND(amount)}
         </Text>
       ),
@@ -192,8 +194,9 @@ export const DebtPaymentManagement: React.FC = () => {
           type="primary"
           icon={<DollarOutlined />}
           onClick={() => handleReceivePayment(record)}
+          disabled={record.remainingDebt <= 0}
         >
-          Thu Tiền
+          {record.remainingDebt > 0 ? 'Thu Tiền' : 'Đã Hết Nợ'}
         </Button>
       ),
     },
@@ -256,11 +259,19 @@ export const DebtPaymentManagement: React.FC = () => {
           </Col>
         </Row>
 
-        <Card title="Danh Sách Công Nợ" className="shadow-sm">
+        <Card
+          title="Danh Sách Công Nợ"
+          className="shadow-sm"
+          extra={
+            <Button icon={<ReloadOutlined />} onClick={loadDebts} loading={loading}>
+              Làm Mới
+            </Button>
+          }
+        >
           <Table
             loading={loading}
             columns={columns}
-            dataSource={patientsWithDebt}
+            dataSource={debts}
             rowKey="id"
             pagination={{
               pageSize: 10,
