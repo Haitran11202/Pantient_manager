@@ -37,6 +37,7 @@ export interface InvoiceServiceDto {
   serviceName: string;
   quantity: number;
   unitPrice: number;
+  discountPercent?: number;
   subtotal: number;
 }
 
@@ -54,6 +55,14 @@ export interface InvoiceDto {
   existingDebt: number;
   amountPaid: number;
   status: InvoiceStatus;
+}
+
+export interface InvoiceServicePayloadDto {
+  serviceId: string;
+  serviceName: string;
+  quantity: number;
+  unitPrice: number;
+  discountPercent?: number;
 }
 
 export interface DebtPaymentDto {
@@ -114,8 +123,8 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://patientmanage-api.onrender.com';
-// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:7143';
+// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://patientmanage-api.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5200';
 const TOKEN_STORAGE_KEY = 'pm_access_token';
 
 export const authStorage = {
@@ -226,7 +235,7 @@ export const api = {
   createInvoice: (payload: {
     patientId: string;
     date: string;
-    services: Array<{ serviceId: string; serviceName: string; quantity: number; unitPrice: number }>;
+    services: InvoiceServicePayloadDto[];
     doctorNotes: string;
     existingDebt: number;
     amountPaid: number;
@@ -235,7 +244,7 @@ export const api = {
   updateInvoice: (id: string, payload: {
     patientId: string;
     date: string;
-    services: Array<{ serviceId: string; serviceName: string; quantity: number; unitPrice: number }>;
+    services: InvoiceServicePayloadDto[];
     doctorNotes: string;
     existingDebt: number;
     amountPaid: number;
@@ -273,4 +282,3 @@ export const api = {
     return response.blob();
   },
 };
-

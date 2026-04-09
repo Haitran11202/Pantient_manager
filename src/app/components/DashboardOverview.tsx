@@ -11,7 +11,11 @@ const { RangePicker } = DatePicker;
 const formatVND = (value: number) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
 
-export const DashboardOverview = () => {
+interface DashboardOverviewProps {
+  isActive: boolean;
+}
+
+export const DashboardOverview = ({ isActive }: DashboardOverviewProps) => {
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
   const [reportRange, setReportRange] = useState<[Dayjs, Dayjs]>([
     dayjs().startOf('month'),
@@ -35,8 +39,12 @@ export const DashboardOverview = () => {
   };
 
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+
     loadSummary(selectedDate);
-  }, [selectedDate]);
+  }, [isActive, selectedDate]);
 
   const handleExportExcel = async () => {
     try {

@@ -44,7 +44,11 @@ const { TextArea } = Input;
 type AppointmentStatus = 'waiting' | 'completed' | 'cancelled';
 type Appointment = AppointmentDto;
 
-export const DailyAppointments: React.FC = () => {
+interface DailyAppointmentsProps {
+  isActive: boolean;
+}
+
+export const DailyAppointments: React.FC<DailyAppointmentsProps> = ({ isActive }) => {
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -69,8 +73,12 @@ export const DailyAppointments: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+
     loadAppointments();
-  }, []);
+  }, [isActive]);
 
   const getStatusTag = (status: AppointmentStatus) => {
     switch (status) {

@@ -48,6 +48,12 @@ export default function App() {
     }
   }, [authToken]);
 
+  useEffect(() => {
+    if (authToken && activeTab === 'patients') {
+      loadPatients();
+    }
+  }, [authToken, activeTab]);
+
   const handleLogin = async (values: { username: string; password: string }) => {
     try {
       setLoggingIn(true);
@@ -211,7 +217,7 @@ export default function App() {
                       Dashboard
                     </span>
                   ),
-                  children: <DashboardOverview />,
+                  children: <DashboardOverview isActive={activeTab === 'dashboard'} />,
                 },
                 {
                   key: 'appointments',
@@ -221,7 +227,7 @@ export default function App() {
                       Lịch Hẹn Hàng Ngày
                     </span>
                   ),
-                  children: <DailyAppointments />,
+                  children: <DailyAppointments isActive={activeTab === 'appointments'} />,
                 },
                 {
                   key: 'patients',
@@ -311,7 +317,7 @@ export default function App() {
                       Điều Trị & Hóa Đơn
                     </span>
                   ),
-                  children: <TreatmentInvoice />,
+                  children: <TreatmentInvoice isActive={activeTab === 'treatment'} />,
                 },
                 {
                   key: 'pricing',
@@ -321,7 +327,7 @@ export default function App() {
                       Quản Lý Dịch Vụ & Giá
                     </span>
                   ),
-                  children: <ServicesPricing />,
+                  children: <ServicesPricing isActive={activeTab === 'pricing'} />,
                 },
                 {
                   key: 'debt',
@@ -331,7 +337,7 @@ export default function App() {
                       Quản Lý Công Nợ
                     </span>
                   ),
-                  children: <DebtPaymentManagement />,
+                  children: <DebtPaymentManagement isActive={activeTab === 'debt'} />,
                 },
               ]}
             />

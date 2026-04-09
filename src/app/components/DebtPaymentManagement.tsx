@@ -39,7 +39,11 @@ interface PaymentFormValues {
 
 type PatientDebt = DebtDto;
 
-export const DebtPaymentManagement: React.FC = () => {
+interface DebtPaymentManagementProps {
+  isActive: boolean;
+}
+
+export const DebtPaymentManagement: React.FC<DebtPaymentManagementProps> = ({ isActive }) => {
   const [debts, setDebts] = useState<PatientDebt[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientDebt | null>(null);
@@ -62,8 +66,12 @@ export const DebtPaymentManagement: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+
     loadDebts();
-  }, []);
+  }, [isActive]);
 
   const formatVND = (amount: number): string => {
     return new Intl.NumberFormat('vi-VN', {

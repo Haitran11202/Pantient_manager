@@ -27,7 +27,11 @@ const { Title, Text } = Typography;
 
 type Service = ServiceDto;
 
-export const ServicesPricing: React.FC = () => {
+interface ServicesPricingProps {
+  isActive: boolean;
+}
+
+export const ServicesPricing: React.FC<ServicesPricingProps> = ({ isActive }) => {
   const [services, setServices] = useState<Service[]>([]);
   const [searchText, setSearchText] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -49,8 +53,12 @@ export const ServicesPricing: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+
     loadServices();
-  }, []);
+  }, [isActive]);
 
   const formatVND = (amount: number): string => {
     return new Intl.NumberFormat('vi-VN', {

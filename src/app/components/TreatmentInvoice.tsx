@@ -44,6 +44,7 @@ interface ServiceRow {
   serviceName: string;
   quantity: number;
   unitPrice: number;
+  discountPercent: number;
   subtotal: number;
 }
 
@@ -55,7 +56,136 @@ interface PatientInfo {
 
 type Invoice = InvoiceDto;
 
-export const TreatmentInvoice: React.FC = () => {
+interface TreatmentInvoiceProps {
+  isActive: boolean;
+}
+
+const DISCOUNT_PERCENTAGES = Array.from({ length: 11 }, (_, index) => index * 10);
+
+const getDiscountPercent = (discountPercent?: number): number => {
+  if (typeof discountPercent !== 'number') {
+    return 0;
+  }
+
+  return DISCOUNT_PERCENTAGES.includes(discountPercent) ? discountPercent : 0;
+};
+
+const calculateGrossAmount = (quantity: number, unitPrice: number): number => quantity * unitPrice;
+
+const calculateDiscountAmount = (
+  quantity: number,
+  unitPrice: number,
+  discountPercent = 0
+): number => {
+  const grossAmount = calculateGrossAmount(quantity, unitPrice);
+  return Math.round((grossAmount * getDiscountPercent(discountPercent)) / 100);
+};
+
+const calculateSubtotal = (
+  quantity: number,
+  unitPrice: number,
+  discountPercent = 0
+): number => calculateGrossAmount(quantity, unitPrice) - calculateDiscountAmount(quantity, unitPrice, discountPercent);
+
+const isStoredSubtotal = (subtotal?: number): subtotal is number =>
+  typeof subtotal === 'number' && Number.isFinite(subtotal);
+
+const inferDiscountPercentFromSubtotal = (
+  quantity: number,
+  unitPrice: number,
+  subtotal?: number
+): number => {
+  if (!isStoredSubtotal(subtotal)) {
+    return 0;
+  }
+
+  const matchedDiscount = DISCOUNT_PERCENTAGES.find(
+    (discountPercent) => calculateSubtotal(quantity, unitPrice, discountPercent) === subtotal
+  );
+
+  return matchedDiscount ?? 0;
+};
+
+const resolveServiceSubtotal = ({
+  quantity,
+  unitPrice,
+  discountPercent,
+  subtotal,
+}: {
+  quantity: number;
+  unitPrice: number;
+  discountPercent?: number;
+  subtotal?: number;
+}): number => {
+  if (typeof discountPercent === 'number' && DISCOUNT_PERCENTAGES.includes(discountPercent)) {
+    return calculateSubtotal(quantity, unitPrice, discountPercent);
+  }
+
+  if (isStoredSubtotal(subtotal)) {
+    return subtotal;
+  }
+
+  return calculateSubtotal(quantity, unitPrice, 0);
+};
+
+const createEmptyServiceRow = (key: string): ServiceRow => ({
+  key,
+  serviceId: '',
+  serviceName: '',
+  quantity: 1,
+  unitPrice: 0,
+  discountPercent: 0,
+  subtotal: 0,
+});
+
+const normalizeServiceRows = (rows: Partial<ServiceRow>[]): ServiceRow[] => {
+  if (rows.length === 0) {
+    return [createEmptyServiceRow('1')];
+  }
+
+  return rows.map((row, index) => {
+    const quantity = typeof row.quantity === 'number' && row.quantity > 0 ? row.quantity : 1;
+    const unitPrice = typeof row.unitPrice === 'number' ? row.unitPrice : 0;
+    const hasExplicitDiscount =
+      typeof row.discountPercent === 'number' && DISCOUNT_PERCENTAGES.includes(row.discountPercent);
+    const subtotal = resolveServiceSubtotal({
+      quantity,
+      unitPrice,
+      discountPercent: row.discountPercent,
+      subtotal: row.subtotal,
+    });
+    const discountPercent = hasExplicitDiscount
+      ? getDiscountPercent(row.discountPercent)
+      : inferDiscountPercentFromSubtotal(quantity, unitPrice, subtotal);
+
+    return {
+      key: row.key || `${row.serviceId || 'service'}-${index + 1}`,
+      serviceId: row.serviceId || '',
+      serviceName: row.serviceName || '',
+      quantity,
+      unitPrice,
+      discountPercent,
+      subtotal,
+    };
+  });
+};
+
+const calculateServicesTotal = (
+  rows: Array<Pick<ServiceRow, 'quantity' | 'unitPrice'> & { discountPercent?: number; subtotal?: number }>
+): number =>
+  rows.reduce(
+    (sum, row) =>
+      sum +
+      resolveServiceSubtotal({
+        quantity: row.quantity,
+        unitPrice: row.unitPrice,
+        discountPercent: row.discountPercent,
+        subtotal: row.subtotal,
+      }),
+    0
+  );
+
+export const TreatmentInvoice: React.FC<TreatmentInvoiceProps> = ({ isActive }) => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [patients, setPatients] = useState<PatientInfo[]>([]);
   const [serviceCatalog, setServiceCatalog] = useState<ServiceItem[]>([]);
@@ -68,16 +198,7 @@ export const TreatmentInvoice: React.FC = () => {
   const [form] = Form.useForm();
 
   const [selectedPatient, setSelectedPatient] = useState<PatientInfo | null>(null);
-  const [serviceRows, setServiceRows] = useState<ServiceRow[]>([
-    {
-      key: '1',
-      serviceId: '',
-      serviceName: '',
-      quantity: 1,
-      unitPrice: 0,
-      subtotal: 0,
-    },
-  ]);
+  const [serviceRows, setServiceRows] = useState<ServiceRow[]>([createEmptyServiceRow('1')]);
   const [doctorNotes, setDoctorNotes] = useState<string>('');
   const [existingDebt, setExistingDebt] = useState<number>(0);
   const [amountPaid, setAmountPaid] = useState<number>(0);
@@ -120,8 +241,12 @@ export const TreatmentInvoice: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+
     loadData();
-  }, []);
+  }, [isActive]);
 
   useEffect(() => {
     if (!selectedPatient) {
@@ -166,16 +291,7 @@ export const TreatmentInvoice: React.FC = () => {
     setEditingInvoice(null);
     setIsViewMode(false);
     setSelectedPatient(null);
-    setServiceRows([
-      {
-        key: '1',
-        serviceId: '',
-        serviceName: '',
-        quantity: 1,
-        unitPrice: 0,
-        subtotal: 0,
-      },
-    ]);
+    setServiceRows([createEmptyServiceRow('1')]);
     setDoctorNotes('');
     setExistingDebt(0);
     setAmountPaid(0);
@@ -191,7 +307,7 @@ export const TreatmentInvoice: React.FC = () => {
     setEditingInvoice(invoice);
     setIsViewMode(false);
     setSelectedPatient(selected);
-    setServiceRows(invoice.services);
+    setServiceRows(normalizeServiceRows(invoice.services));
     setDoctorNotes(invoice.doctorNotes);
     setExistingDebt(invoice.existingDebt);
     setAmountPaid(invoice.amountPaid);
@@ -211,7 +327,7 @@ export const TreatmentInvoice: React.FC = () => {
     setEditingInvoice(invoice);
     setIsViewMode(true);
     setSelectedPatient(selected);
-    setServiceRows(invoice.services);
+    setServiceRows(normalizeServiceRows(invoice.services));
     setDoctorNotes(invoice.doctorNotes);
     setExistingDebt(invoice.existingDebt);
     setAmountPaid(invoice.amountPaid);
@@ -235,14 +351,7 @@ export const TreatmentInvoice: React.FC = () => {
   };
 
   const handleAddRow = () => {
-    const newRow: ServiceRow = {
-      key: Date.now().toString(),
-      serviceId: '',
-      serviceName: '',
-      quantity: 1,
-      unitPrice: 0,
-      subtotal: 0,
-    };
+    const newRow = createEmptyServiceRow(Date.now().toString());
     setServiceRows([...serviceRows, newRow]);
   };
 
@@ -260,7 +369,7 @@ export const TreatmentInvoice: React.FC = () => {
               serviceId: service.id,
               serviceName: service.name,
               unitPrice: service.unitPrice,
-              subtotal: service.unitPrice * row.quantity,
+              subtotal: calculateSubtotal(row.quantity, service.unitPrice, row.discountPercent),
             }
           : row
       );
@@ -274,10 +383,25 @@ export const TreatmentInvoice: React.FC = () => {
         ? {
             ...row,
             quantity,
-            subtotal: row.unitPrice * quantity,
+            subtotal: calculateSubtotal(quantity, row.unitPrice, row.discountPercent),
           }
         : row
     );
+    setServiceRows(updatedRows);
+  };
+
+  const handleDiscountChange = (key: string, discountPercent: number) => {
+    const nextDiscountPercent = getDiscountPercent(discountPercent);
+    const updatedRows = serviceRows.map((row) =>
+      row.key === key
+        ? {
+            ...row,
+            discountPercent: nextDiscountPercent,
+            subtotal: calculateSubtotal(row.quantity, row.unitPrice, nextDiscountPercent),
+          }
+        : row
+    );
+
     setServiceRows(updatedRows);
   };
 
@@ -289,11 +413,18 @@ export const TreatmentInvoice: React.FC = () => {
   };
 
   const totals = useMemo(() => {
+    const grossServicesTotal = serviceRows.reduce(
+      (sum, row) => sum + calculateGrossAmount(row.quantity, row.unitPrice),
+      0
+    );
     const servicesTotal = serviceRows.reduce((sum, row) => sum + row.subtotal, 0);
+    const discountTotal = grossServicesTotal - servicesTotal;
     const grandTotal = servicesTotal + existingDebt;
     const remainingDebt = grandTotal - amountPaid;
 
     return {
+      grossServicesTotal,
+      discountTotal,
       servicesTotal,
       existingDebt,
       grandTotal,
@@ -330,6 +461,7 @@ export const TreatmentInvoice: React.FC = () => {
           serviceName: item.serviceName,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          discountPercent: item.discountPercent,
         })),
         doctorNotes,
         existingDebt,
@@ -360,7 +492,7 @@ export const TreatmentInvoice: React.FC = () => {
       title: 'Tên Dịch Vụ',
       dataIndex: 'serviceName',
       key: 'serviceName',
-      width: '35%',
+      width: '28%',
       render: (_: any, record: ServiceRow) =>
         isViewMode ? (
           <Text>{record.serviceName}</Text>
@@ -383,7 +515,7 @@ export const TreatmentInvoice: React.FC = () => {
       title: 'Số Lượng',
       dataIndex: 'quantity',
       key: 'quantity',
-      width: '15%',
+      width: '12%',
       render: (_: any, record: ServiceRow) =>
         isViewMode ? (
           <Text>{record.quantity}</Text>
@@ -401,20 +533,47 @@ export const TreatmentInvoice: React.FC = () => {
       title: 'Đơn Giá',
       dataIndex: 'unitPrice',
       key: 'unitPrice',
-      width: '20%',
+      width: '18%',
       render: (price: number) => (
         <Text className="text-blue-600">{formatVND(price)}</Text>
       ),
     },
     {
+      title: 'Giảm Giá',
+      dataIndex: 'discountPercent',
+      key: 'discountPercent',
+      width: '15%',
+      render: (discountPercent: number, record: ServiceRow) =>
+        isViewMode ? (
+          <Text>{getDiscountPercent(discountPercent)}%</Text>
+        ) : (
+          <Select
+            style={{ width: '100%' }}
+            value={record.discountPercent}
+            onChange={(value) => handleDiscountChange(record.key, value)}
+            options={DISCOUNT_PERCENTAGES.map((value) => ({
+              label: `${value}%`,
+              value,
+            }))}
+          />
+        ),
+    },
+    {
       title: 'Thành Tiền',
       dataIndex: 'subtotal',
       key: 'subtotal',
-      width: '20%',
-      render: (subtotal: number) => (
-        <Text strong className="text-green-600">
-          {formatVND(subtotal)}
-        </Text>
+      width: '17%',
+      render: (_: number, record: ServiceRow) => (
+        <div className="flex flex-col">
+          <Text strong className="text-green-600">
+            {formatVND(record.subtotal)}
+          </Text>
+          {record.discountPercent > 0 && (
+            <Text type="secondary" className="text-xs">
+              Gốc: {formatVND(calculateGrossAmount(record.quantity, record.unitPrice))}
+            </Text>
+          )}
+        </div>
       ),
     },
     ...(isViewMode
@@ -470,8 +629,7 @@ export const TreatmentInvoice: React.FC = () => {
       key: 'total',
       width: 150,
       render: (_: any, record: Invoice) => {
-        const total =
-          record.services.reduce((sum, s) => sum + s.subtotal, 0) + record.existingDebt;
+        const total = calculateServicesTotal(record.services) + record.existingDebt;
         return <Text className="text-blue-600">{formatVND(total)}</Text>;
       },
     },
@@ -489,8 +647,7 @@ export const TreatmentInvoice: React.FC = () => {
       key: 'remaining',
       width: 150,
       render: (_: any, record: Invoice) => {
-        const total =
-          record.services.reduce((sum, s) => sum + s.subtotal, 0) + record.existingDebt;
+        const total = calculateServicesTotal(record.services) + record.existingDebt;
         const remaining = total - record.amountPaid;
         return (
           <Text strong className={remaining > 0 ? 'text-red-600' : 'text-gray-500'}>
@@ -711,14 +868,23 @@ export const TreatmentInvoice: React.FC = () => {
                 pagination={false}
                 bordered
                 size="small"
+                scroll={{ x: 900 }}
                 footer={() => (
-                  <div className="text-right">
-                    <Text strong>
-                      Tổng tiền dịch vụ:{' '}
-                      <span className="text-blue-600 text-base">
-                        {formatVND(totals.servicesTotal)}
-                      </span>
-                    </Text>
+                  <div className="text-right space-y-1">
+                    <div>
+                      <Text>
+                        Tổng giảm giá:{' '}
+                        <span className="text-red-600">{formatVND(totals.discountTotal)}</span>
+                      </Text>
+                    </div>
+                    <div>
+                      <Text strong>
+                        Tổng tiền dịch vụ:{' '}
+                        <span className="text-blue-600 text-base">
+                          {formatVND(totals.servicesTotal)}
+                        </span>
+                      </Text>
+                    </div>
                   </div>
                 )}
               />
@@ -742,6 +908,18 @@ export const TreatmentInvoice: React.FC = () => {
               <Col xs={24} md={12}>
                 <Card title="Tổng Kết Tài Chính" size="small">
                   <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+                    <div className="flex justify-between items-center">
+                      <Text>Tạm tính:</Text>
+                      <Text>{formatVND(totals.grossServicesTotal)}</Text>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <Text>Giảm giá dịch vụ:</Text>
+                      <Text strong className="text-red-600">
+                        -{formatVND(totals.discountTotal)}
+                      </Text>
+                    </div>
+
                     <div className="flex justify-between items-center">
                       <Text>Tổng tiền dịch vụ:</Text>
                       <Text strong className="text-blue-600">
