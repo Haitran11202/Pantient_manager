@@ -9,6 +9,24 @@ export interface PatientDto {
   birthYear?: number;
   address?: string;
   medicalHistory?: string;
+  registeredServices: PatientRegisteredServiceDto[];
+}
+
+export interface PatientPayloadDto {
+  fullName: string;
+  phoneNumber: string;
+  birthYear?: number;
+  address?: string;
+  medicalHistory?: string;
+}
+
+export interface PatientRegisteredServiceDto {
+  key: string;
+  serviceName: string;
+  quantity: number;
+  treatmentDate: string;
+  warrantyMonths: number;
+  warrantyExpiresOn?: string;
 }
 
 export interface AppointmentDto {
@@ -28,6 +46,7 @@ export interface ServiceDto {
   serviceName: string;
   unitPrice: number;
   description: string;
+  warrantyMonths: number;
   status: boolean;
 }
 
@@ -38,6 +57,7 @@ export interface InvoiceServiceDto {
   quantity: number;
   unitPrice: number;
   discountPercent?: number;
+  warrantyMonths?: number;
   subtotal: number;
 }
 
@@ -63,6 +83,7 @@ export interface InvoiceServicePayloadDto {
   quantity: number;
   unitPrice: number;
   discountPercent?: number;
+  warrantyMonths?: number;
 }
 
 export interface DebtPaymentDto {
@@ -217,8 +238,8 @@ export const api = {
     }),
 
   getPatients: () => request<PatientDto[]>('/api/patients'),
-  createPatient: (payload: Omit<PatientDto, 'id'>) => request<PatientDto>('/api/patients', { method: 'POST', body: JSON.stringify(payload) }),
-  updatePatient: (id: string, payload: Omit<PatientDto, 'id'>) => request<PatientDto>(`/api/patients/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  createPatient: (payload: PatientPayloadDto) => request<PatientDto>('/api/patients', { method: 'POST', body: JSON.stringify(payload) }),
+  updatePatient: (id: string, payload: PatientPayloadDto) => request<PatientDto>(`/api/patients/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deletePatient: (id: string) => request<void>(`/api/patients/${id}`, { method: 'DELETE' }),
 
   getAppointments: () => request<AppointmentDto[]>('/api/appointments'),

@@ -67,6 +67,32 @@ export const ServicesPricing: React.FC<ServicesPricingProps> = ({ isActive }) =>
     }).format(amount);
   };
 
+  const convertMonthsToYears = (months?: number): number => {
+    if (!months || months <= 0) {
+      return 0;
+    }
+
+    return months / 12;
+  };
+
+  const convertYearsToMonths = (years?: number): number => {
+    if (!years || years <= 0) {
+      return 0;
+    }
+
+    return Math.round(years * 12);
+  };
+
+  const getWarrantyYearsLabel = (months: number): string => {
+    if (months <= 0) {
+      return 'Không bảo hành';
+    }
+
+    const years = convertMonthsToYears(months);
+    const displayYears = Number.isInteger(years) ? years.toString() : years.toFixed(1);
+    return `${displayYears} năm`;
+  };
+
   const filteredServices = useMemo(() => {
     return services.filter(
       (service) =>
@@ -83,6 +109,7 @@ export const ServicesPricing: React.FC<ServicesPricingProps> = ({ isActive }) =>
         serviceName: service.serviceName,
         unitPrice: service.unitPrice,
         description: service.description,
+        warrantyMonths: service.warrantyMonths,
         status: checked,
       });
       await loadServices();
@@ -94,14 +121,17 @@ export const ServicesPricing: React.FC<ServicesPricingProps> = ({ isActive }) =>
 
   const handleEdit = (record: Service) => {
     setEditingService(record);
-    form.setFieldsValue(record);
+    form.setFieldsValue({
+      ...record,
+      warrantyYears: convertMonthsToYears(record.warrantyMonths),
+    });
     setIsModalOpen(true);
   };
 
   const handleAddService = () => {
     setEditingService(null);
     form.resetFields();
-    form.setFieldsValue({ status: true });
+    form.setFieldsValue({ status: true, warrantyYears: 0 });
     setIsModalOpen(true);
   };
 
@@ -124,6 +154,7 @@ export const ServicesPricing: React.FC<ServicesPricingProps> = ({ isActive }) =>
         serviceName: values.serviceName,
         unitPrice: values.unitPrice,
         description: values.description,
+        warrantyMonths: convertYearsToMonths(values.warrantyYears),
         status: values.status,
       };
 
@@ -171,6 +202,14 @@ export const ServicesPricing: React.FC<ServicesPricingProps> = ({ isActive }) =>
           {formatVND(price)}
         </Text>
       ),
+    },
+    {
+      title: 'Bảo Hành',
+      dataIndex: 'warrantyMonths',
+      key: 'warrantyMonths',
+      width: 140,
+      sorter: (a, b) => a.warrantyMonths - b.warrantyMonths,
+      render: (warrantyMonths: number) => <Text>{getWarrantyYearsLabel(warrantyMonths)}</Text>,
     },
     {
       title: 'Mô Tả',
@@ -330,6 +369,9 @@ export const ServicesPricing: React.FC<ServicesPricingProps> = ({ isActive }) =>
             </Form.Item>
             <Form.Item name="unitPrice" label="Đơn Giá" rules={[{ required: true, message: 'Vui lòng nhập đơn giá' }]}>
               <InputNumber style={{ width: '100%' }} min={0} addonAfter="VND" />
+            </Form.Item>
+            <Form.Item name="warrantyYears" label="Thời Gian Bảo Hành (năm)" initialValue={0}>
+              <InputNumber style={{ width: '100%' }} min={0} step={0.5} addonAfter="năm" />
             </Form.Item>
             <Form.Item name="description" label="Mô Tả" rules={[{ required: true, message: 'Vui lòng nhập mô tả' }]}>
               <Input.TextArea rows={3} />

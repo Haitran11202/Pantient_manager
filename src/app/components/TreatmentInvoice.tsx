@@ -60,7 +60,7 @@ interface TreatmentInvoiceProps {
   isActive: boolean;
 }
 
-const DISCOUNT_PERCENTAGES = Array.from({ length: 11 }, (_, index) => index * 10);
+const DISCOUNT_PERCENTAGES = Array.from({ length: 21 }, (_, index) => index * 5);
 
 const getDiscountPercent = (discountPercent?: number): number => {
   if (typeof discountPercent !== 'number') {
@@ -189,6 +189,7 @@ export const TreatmentInvoice: React.FC<TreatmentInvoiceProps> = ({ isActive }) 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [patients, setPatients] = useState<PatientInfo[]>([]);
   const [serviceCatalog, setServiceCatalog] = useState<ServiceItem[]>([]);
+  const [invoiceSearch, setInvoiceSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
@@ -285,6 +286,38 @@ export const TreatmentInvoice: React.FC<TreatmentInvoiceProps> = ({ isActive }) 
         return <Tag>Không xác định</Tag>;
     }
   };
+
+  const filteredInvoices = useMemo(() => {
+    const normalizedSearch = invoiceSearch.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return invoices;
+    }
+
+    return invoices.filter((invoice) => {
+      const totalAmount = calculateServicesTotal(invoice.services) + invoice.existingDebt;
+      const remainingDebt = totalAmount - invoice.amountPaid;
+      const statusLabel =
+        invoice.status === 'completed'
+          ? 'hoàn thành'
+          : invoice.status === 'draft'
+          ? 'nháp'
+          : invoice.status === 'cancelled'
+          ? 'đã hủy'
+          : '';
+
+      return (
+        invoice.invoiceNumber.toLowerCase().includes(normalizedSearch) ||
+        invoice.patient.name.toLowerCase().includes(normalizedSearch) ||
+        invoice.patient.phone.toLowerCase().includes(normalizedSearch) ||
+        dayjs(invoice.date).format('DD/MM/YYYY').includes(normalizedSearch) ||
+        statusLabel.includes(normalizedSearch) ||
+        totalAmount.toString().includes(normalizedSearch) ||
+        invoice.amountPaid.toString().includes(normalizedSearch) ||
+        remainingDebt.toString().includes(normalizedSearch) ||
+        invoice.services.some((service) => service.serviceName.toLowerCase().includes(normalizedSearch))
+      );
+    });
+  }, [invoiceSearch, invoices]);
 
   const handleNewInvoice = async () => {
     await refreshPatients();
@@ -724,6 +757,16 @@ export const TreatmentInvoice: React.FC<TreatmentInvoiceProps> = ({ isActive }) 
         </div>
 
         <Card className="shadow-sm">
+          <div className="mb-4">
+            <Input
+              size="large"
+              allowClear
+              value={invoiceSearch}
+              onChange={(event) => setInvoiceSearch(event.target.value)}
+              placeholder="Tìm hóa đơn theo số HĐ, bệnh nhân, số điện thoại, ngày, dịch vụ..."
+            />
+          </div>
+
           {invoices.length === 0 ? (
             <Empty
               description="Chưa có hóa đơn nào"
@@ -733,11 +776,16 @@ export const TreatmentInvoice: React.FC<TreatmentInvoiceProps> = ({ isActive }) 
                 Tạo Hóa Đơn Đầu Tiên
               </Button>
             </Empty>
+          ) : filteredInvoices.length === 0 ? (
+            <Empty
+              description={`Không tìm thấy hóa đơn phù hợp với từ khóa "${invoiceSearch.trim()}"`}
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            />
           ) : (
             <Table
               loading={loading}
               columns={invoiceColumns}
-              dataSource={invoices}
+              dataSource={filteredInvoices}
               rowKey="id"
               pagination={{
                 pageSize: 10,

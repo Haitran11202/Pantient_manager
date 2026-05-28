@@ -18,6 +18,7 @@ import {
   message,
   Dropdown,
   Spin,
+  Divider,
 } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -34,15 +35,22 @@ import {
   MoreOutlined,
   SearchOutlined,
   FilterOutlined,
+  UserAddOutlined,
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
-import { api, AppointmentDto } from '../api/client';
+import { api, AppointmentDto, PatientDto } from '../api/client';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 type AppointmentStatus = 'waiting' | 'completed' | 'cancelled';
 type Appointment = AppointmentDto;
+
+interface PatientOption {
+  id: string;
+  name: string;
+  phone: string;
+}
 
 interface DailyAppointmentsProps {
   isActive: boolean;
@@ -57,6 +65,10 @@ export const DailyAppointments: React.FC<DailyAppointmentsProps> = ({ isActive }
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | 'all'>('all');
   const [loading, setLoading] = useState(false);
+  const [loadingPatients, setLoadingPatients] = useState(false);
+  const [submittingAppointment, setSubmittingAppointment] = useState(false);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
+  const [isAddingPatient, setIsAddingPatient] = useState(false);
   const [form] = Form.useForm();
 
   const loadAppointments = async () => {
@@ -69,6 +81,26 @@ export const DailyAppointments: React.FC<DailyAppointmentsProps> = ({ isActive }
       console.error(error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPatients = async () => {
+    try {
+      setLoadingPatients(true);
+      const data = await api.getPatients();
+      const mappedPatients = data.map((patient: PatientDto) => ({
+        id: patient.id,
+        name: patient.fullName,
+        phone: patient.phoneNumber,
+      }));
+      setPatients(mappedPatients);
+      return mappedPatients;
+    } catch (error) {
+      message.error('Không tải được danh sách bệnh nhân');
+      console.error(error);
+      return [];
+    } finally {
+      setLoadingPatients(false);
     }
   };
 
@@ -128,10 +160,47 @@ export const DailyAppointments: React.FC<DailyAppointmentsProps> = ({ isActive }
     };
   }, [filteredByDate]);
 
-  const handleNewAppointment = () => {
+  const resetModalState = () => {
+    setIsModalOpen(false);
+    setIsViewMode(false);
+    setEditingAppointment(null);
+    setIsAddingPatient(false);
+    form.resetFields();
+  };
+
+  const syncAppointmentPatientToForm = (
+    appointment: Appointment | null,
+    patientList: PatientOption[]
+  ) => {
+    if (!appointment) {
+      form.setFieldsValue({
+        patientId: undefined,
+        patientName: undefined,
+        phone: undefined,
+      });
+      return;
+    }
+
+    const matchedPatient = patientList.find(
+      (patient) =>
+        patient.name.trim().toLowerCase() === appointment.patientName.trim().toLowerCase() &&
+        patient.phone.trim() === appointment.phone.trim()
+    );
+
+    form.setFieldsValue({
+      patientId: matchedPatient?.id ?? `external:${appointment.patientName}:${appointment.phone}`,
+      patientName: appointment.patientName,
+      phone: appointment.phone,
+    });
+  };
+
+  const openCreateModal = async () => {
+    const patientList = await loadPatients();
     setEditingAppointment(null);
     setIsViewMode(false);
+    setIsAddingPatient(false);
     form.resetFields();
+    syncAppointmentPatientToForm(null, patientList);
     form.setFieldsValue({
       date: selectedDate,
       status: 'waiting',
@@ -139,34 +208,33 @@ export const DailyAppointments: React.FC<DailyAppointmentsProps> = ({ isActive }
     setIsModalOpen(true);
   };
 
-  const handleEditAppointment = (appointment: Appointment) => {
+  const openExistingModal = async (appointment: Appointment, viewMode: boolean) => {
+    const patientList = await loadPatients();
     setEditingAppointment(appointment);
-    setIsViewMode(false);
+    setIsViewMode(viewMode);
+    setIsAddingPatient(false);
+    form.resetFields();
     form.setFieldsValue({
-      patientName: appointment.patientName,
-      phone: appointment.phone,
       date: dayjs(appointment.date),
       time: dayjs(appointment.time, 'HH:mm'),
       reason: appointment.reason,
       status: appointment.status,
       notes: appointment.notes,
     });
+    syncAppointmentPatientToForm(appointment, patientList);
     setIsModalOpen(true);
   };
 
-  const handleViewAppointment = (appointment: Appointment) => {
-    setEditingAppointment(appointment);
-    setIsViewMode(true);
-    form.setFieldsValue({
-      patientName: appointment.patientName,
-      phone: appointment.phone,
-      date: dayjs(appointment.date),
-      time: dayjs(appointment.time, 'HH:mm'),
-      reason: appointment.reason,
-      status: appointment.status,
-      notes: appointment.notes,
-    });
-    setIsModalOpen(true);
+  const handleNewAppointment = async () => {
+    await openCreateModal();
+  };
+
+  const handleEditAppointment = async (appointment: Appointment) => {
+    await openExistingModal(appointment, false);
+  };
+
+  const handleViewAppointment = async (appointment: Appointment) => {
+    await openExistingModal(appointment, true);
   };
 
   const handleDeleteAppointment = async (id: string) => {
@@ -216,13 +284,100 @@ export const DailyAppointments: React.FC<DailyAppointmentsProps> = ({ isActive }
     }
   };
 
+  const patientOptions = useMemo(() => {
+    const options = patients.map((patient) => ({
+      label: `${patient.name} - ${patient.phone}`,
+      value: patient.id,
+    }));
+
+    if (
+      editingAppointment &&
+      !patients.some(
+        (patient) =>
+          patient.name.trim().toLowerCase() === editingAppointment.patientName.trim().toLowerCase() &&
+          patient.phone.trim() === editingAppointment.phone.trim()
+      )
+    ) {
+      options.unshift({
+        label: `${editingAppointment.patientName} - ${editingAppointment.phone} (hiện tại)`,
+        value: `external:${editingAppointment.patientName}:${editingAppointment.phone}`,
+      });
+    }
+
+    return options;
+  }, [patients, editingAppointment]);
+
+  const handlePatientChange = (patientId: string) => {
+    const patient = patients.find((item) => item.id === patientId);
+    if (!patient) {
+      return;
+    }
+
+    form.setFieldsValue({
+      patientName: patient.name,
+      phone: patient.phone,
+    });
+  };
+
+  const handleToggleAddPatient = () => {
+    const nextValue = !isAddingPatient;
+    setIsAddingPatient(nextValue);
+
+    if (nextValue) {
+      form.setFieldsValue({
+        patientId: undefined,
+        patientName: undefined,
+        phone: undefined,
+      });
+      return;
+    }
+
+    form.setFieldsValue({
+      newPatientName: undefined,
+      newPatientPhone: undefined,
+    });
+  };
+
   const handleSaveAppointment = async () => {
+    if (submittingAppointment) {
+      return;
+    }
+
     try {
+      setSubmittingAppointment(true);
       const values = await form.validateFields();
 
+      let patientName = values.patientName;
+      let phone = values.phone;
+
+      if (isAddingPatient) {
+        const createdPatient = await api.createPatient({
+          fullName: values.newPatientName,
+          phoneNumber: values.newPatientPhone,
+        });
+
+        patientName = createdPatient.fullName;
+        phone = createdPatient.phoneNumber;
+
+        setPatients((currentPatients) => [
+          ...currentPatients,
+          {
+            id: createdPatient.id,
+            name: createdPatient.fullName,
+            phone: createdPatient.phoneNumber,
+          },
+        ]);
+
+        form.setFieldsValue({
+          patientId: createdPatient.id,
+          patientName,
+          phone,
+        });
+      }
+
       const appointmentData = {
-        patientName: values.patientName,
-        phone: values.phone,
+        patientName,
+        phone,
         date: values.date.format('YYYY-MM-DD'),
         time: values.time.format('HH:mm'),
         reason: values.reason,
@@ -238,11 +393,12 @@ export const DailyAppointments: React.FC<DailyAppointmentsProps> = ({ isActive }
         message.success('Đã tạo lịch hẹn mới thành công!');
       }
 
-      setIsModalOpen(false);
-      form.resetFields();
+      resetModalState();
       await loadAppointments();
     } catch (error) {
       console.error('Validation failed:', error);
+    } finally {
+      setSubmittingAppointment(false);
     }
   };
 
@@ -548,16 +704,22 @@ export const DailyAppointments: React.FC<DailyAppointmentsProps> = ({ isActive }
           open={isModalOpen}
           onOk={handleSaveAppointment}
           onCancel={() => {
-            setIsModalOpen(false);
-            form.resetFields();
+            if (submittingAppointment) {
+              return;
+            }
+            resetModalState();
           }}
           okText={isViewMode ? undefined : editingAppointment ? 'Cập nhật' : 'Tạo lịch hẹn'}
           cancelText={isViewMode ? 'Đóng' : 'Hủy'}
           width={700}
+          confirmLoading={submittingAppointment}
+          maskClosable={!submittingAppointment}
+          keyboard={!submittingAppointment}
+          closable={!submittingAppointment}
           footer={
             isViewMode
               ? [
-                  <Button key="close" onClick={() => setIsModalOpen(false)}>
+                  <Button key="close" onClick={resetModalState}>
                     Đóng
                   </Button>,
                   <Button
@@ -574,32 +736,111 @@ export const DailyAppointments: React.FC<DailyAppointmentsProps> = ({ isActive }
           destroyOnClose
         >
           <Form form={form} layout="vertical" disabled={isViewMode}>
-            <Row gutter={16}>
-              <Col span={12}>
+            <Form.Item name="patientName" hidden>
+              <Input />
+            </Form.Item>
+            <Form.Item name="phone" hidden>
+              <Input />
+            </Form.Item>
+
+            <Row gutter={16} align="bottom">
+              <Col span={18}>
                 <Form.Item
-                  name="patientName"
-                  label="Tên Bệnh Nhân"
-                  rules={[{ required: true, message: 'Vui lòng nhập tên bệnh nhân' }]}
+                  name="patientId"
+                  label="Chọn Bệnh Nhân"
+                  rules={
+                    isAddingPatient
+                      ? []
+                      : [{ required: true, message: 'Vui lòng chọn bệnh nhân' }]
+                  }
                 >
-                  <Input placeholder="Nhập tên bệnh nhân" size="large" />
+                  <Select
+                    placeholder="Chọn bệnh nhân từ danh sách"
+                    size="large"
+                    showSearch
+                    optionFilterProp="label"
+                    loading={loadingPatients}
+                    disabled={isViewMode || isAddingPatient}
+                    options={patientOptions}
+                    onChange={handlePatientChange}
+                  />
                 </Form.Item>
               </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="phone"
-                  label="Số Điện Thoại"
-                  rules={[
-                    { required: true, message: 'Vui lòng nhập số điện thoại' },
-                    {
-                      pattern: /^[+\d\s()-]+$/,
-                      message: 'Số điện thoại không hợp lệ',
-                    },
-                  ]}
-                >
-                  <Input placeholder="Nhập số điện thoại" size="large" />
-                </Form.Item>
-              </Col>
+              {!isViewMode && (
+                <Col span={6}>
+                  <Button
+                    icon={<UserAddOutlined />}
+                    size="large"
+                    block
+                    onClick={handleToggleAddPatient}
+                  >
+                    {isAddingPatient ? 'Hủy thêm' : 'Thêm mới'}
+                  </Button>
+                </Col>
+              )}
             </Row>
+
+            {!isAddingPatient && (
+              <Form.Item shouldUpdate noStyle>
+                {() => {
+                  const selectedPatientId = form.getFieldValue('patientId');
+                  const selectedPatient = patients.find((patient) => patient.id === selectedPatientId);
+                  const displayName =
+                    selectedPatient?.name ??
+                    form.getFieldValue('patientName') ??
+                    editingAppointment?.patientName;
+                  const displayPhone =
+                    selectedPatient?.phone ??
+                    form.getFieldValue('phone') ??
+                    editingAppointment?.phone;
+
+                  if (!displayName || !displayPhone) {
+                    return null;
+                  }
+
+                  return (
+                    <Card size="small" className="mb-4 bg-blue-50">
+                      <Text strong className="block">
+                        {displayName}
+                      </Text>
+                      <Text type="secondary">{displayPhone}</Text>
+                    </Card>
+                  );
+                }}
+              </Form.Item>
+            )}
+
+            {isAddingPatient && (
+              <>
+                <Divider className="!mt-0" />
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Item
+                      name="newPatientName"
+                      label="Tên Bệnh Nhân Mới"
+                      rules={[{ required: true, message: 'Vui lòng nhập tên bệnh nhân' }]}
+                    >
+                      <Input placeholder="Nhập tên bệnh nhân" size="large" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item
+                      name="newPatientPhone"
+                      label="Số Điện Thoại Bệnh Nhân Mới"
+                      rules={[
+                        { required: true, message: 'Vui lòng nhập số điện thoại' },
+                        {
+                          pattern: /^[+\d\s()-]+$/,
+                          message: 'Số điện thoại không hợp lệ',
+                        },
+                      ]}
+                    >
+                      <Input placeholder="Nhập số điện thoại" size="large" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </>
+            )}
 
             <Row gutter={16}>
               <Col span={12}>

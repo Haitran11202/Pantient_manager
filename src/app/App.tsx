@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
-import { ConfigProvider, Button, Card, Space, Typography, Tabs, Flex, App as AntApp, message, Popconfirm, Form, Input } from 'antd';
-import { DashboardOutlined, UserAddOutlined, EditOutlined, FileTextOutlined, CalendarOutlined, DollarOutlined, CreditCardOutlined, DeleteOutlined, UserOutlined, LockOutlined, LogoutOutlined } from '@ant-design/icons';
+import { useEffect, useMemo, useState } from 'react';
+import { ConfigProvider, Button, Card, Space, Typography, Tabs, Flex, App as AntApp, message, Popconfirm, Form, Input, Tag } from 'antd';
+import { DashboardOutlined, UserAddOutlined, EditOutlined, FileTextOutlined, CalendarOutlined, DollarOutlined, CreditCardOutlined, DeleteOutlined, UserOutlined, LockOutlined, LogoutOutlined, SearchOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { PatientFormModal, PatientFormData } from './components/PatientFormModal';
 import { TreatmentInvoice } from './components/TreatmentInvoice';
 import { DailyAppointments } from './components/DailyAppointments';
 import { ServicesPricing } from './components/ServicesPricing';
 import { DebtPaymentManagement } from './components/DebtPaymentManagement';
 import { DashboardOverview } from './components/DashboardOverview';
-import { api, ApiError, authStorage } from './api/client';
+import { api, ApiError, authStorage, PatientDto, PatientRegisteredServiceDto } from './api/client';
 
 const { Title, Text } = Typography;
 
@@ -17,10 +18,11 @@ export default function App() {
   const [loggingIn, setLoggingIn] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [patients, setPatients] = useState<PatientFormData[]>([]);
-  const [editingPatient, setEditingPatient] = useState<PatientFormData | undefined>();
+  const [patients, setPatients] = useState<PatientDto[]>([]);
+  const [editingPatient, setEditingPatient] = useState<PatientDto | undefined>();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loadingPatients, setLoadingPatients] = useState(false);
+  const [patientSearch, setPatientSearch] = useState('');
 
   const loadPatients = async () => {
     try {
@@ -89,7 +91,7 @@ export default function App() {
     setIsModalOpen(true);
   };
 
-  const handleEditPatient = (patient: PatientFormData) => {
+  const handleEditPatient = (patient: PatientDto) => {
     setEditingPatient(patient);
     setIsModalOpen(true);
   };
@@ -101,7 +103,6 @@ export default function App() {
         phoneNumber: values.phoneNumber,
         birthYear: values.birthYear,
         address: values.address,
-        medicalHistory: values.medicalHistory,
       };
 
       if (editingPatient?.id) {
@@ -154,6 +155,41 @@ export default function App() {
     setIsModalOpen(false);
     setEditingPatient(undefined);
   };
+
+  const formatDate = (value?: string) => (value ? dayjs(value).format('DD/MM/YYYY') : '');
+
+  const getWarrantyLabel = (service: PatientRegisteredServiceDto) => {
+    if (service.warrantyMonths <= 0) {
+      return 'Không bảo hành';
+    }
+
+    if (!service.warrantyExpiresOn) {
+      return `${service.warrantyMonths} tháng`;
+    }
+
+    return `${service.warrantyMonths} tháng, đến ${formatDate(service.warrantyExpiresOn)}`;
+  };
+
+  const filteredPatients = useMemo(() => {
+    const normalizedSearch = patientSearch.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return patients;
+    }
+
+    return patients.filter((patient) => {
+      const registeredServices = patient.registeredServices.some((service) =>
+        service.serviceName.toLowerCase().includes(normalizedSearch)
+      );
+
+      return (
+        patient.fullName.toLowerCase().includes(normalizedSearch) ||
+        patient.phoneNumber.toLowerCase().includes(normalizedSearch) ||
+        patient.birthYear?.toString().includes(normalizedSearch) ||
+        patient.address?.toLowerCase().includes(normalizedSearch) ||
+        registeredServices
+      );
+    });
+  }, [patientSearch, patients]);
 
   return (
     <ConfigProvider
@@ -241,9 +277,14 @@ export default function App() {
                     <div className="max-w-5xl mx-auto pb-8">
                       <Card loading={loadingPatients}>
                         <div className="flex justify-between items-center mb-6">
-                          <Title level={2} className="!mb-0">
-                            Phòng Khám Nha Khoa - Quản Lý Bệnh Nhân
-                          </Title>
+                          <div>
+                            <Title level={2} className="!mb-0">
+                              Phòng Khám Nha Khoa - Quản Lý Bệnh Nhân
+                            </Title>
+                            <Text type="secondary">
+                              Tìm theo tên, số điện thoại, năm sinh, địa chỉ hoặc dịch vụ đã làm
+                            </Text>
+                          </div>
                           <Button
                             type="primary"
                             icon={<UserAddOutlined />}
@@ -254,15 +295,31 @@ export default function App() {
                           </Button>
                         </div>
 
+                        <Input
+                          size="large"
+                          allowClear
+                          value={patientSearch}
+                          onChange={(event) => setPatientSearch(event.target.value)}
+                          placeholder="Tìm bệnh nhân theo tên, số điện thoại, địa chỉ..."
+                          prefix={<SearchOutlined />}
+                          className="mb-6"
+                        />
+
                         {patients.length === 0 ? (
                           <div className="text-center py-12">
                             <Text type="secondary">
                               Chưa có bệnh nhân nào. Nhấn "Thêm Bệnh Nhân" để bắt đầu.
                             </Text>
                           </div>
+                        ) : filteredPatients.length === 0 ? (
+                          <div className="text-center py-12">
+                            <Text type="secondary">
+                              Không tìm thấy bệnh nhân phù hợp với từ khóa "{patientSearch.trim()}".
+                            </Text>
+                          </div>
                         ) : (
                           <Flex vertical gap="middle">
-                            {patients.map((patient) => (
+                            {filteredPatients.map((patient) => (
                               <Card key={patient.id} variant="outlined">
                                 <div className="flex justify-between items-start">
                                   <div>
@@ -273,12 +330,45 @@ export default function App() {
                                       <Text>Điện thoại: {patient.phoneNumber}</Text>
                                       {patient.birthYear && <Text>Năm sinh: {patient.birthYear}</Text>}
                                       {patient.address && <Text>Địa chỉ: {patient.address}</Text>}
-                                      {patient.medicalHistory && (
-                                        <Text type="secondary" className="text-sm">
-                                          Tiền sử bệnh: {patient.medicalHistory}
-                                        </Text>
-                                      )}
                                     </Space>
+
+                                    <div className="mt-4 border-t border-gray-100 pt-4">
+                                      <Text strong className="block mb-3">
+                                        Dịch vụ đã làm
+                                      </Text>
+
+                                      {patient.registeredServices.length === 0 ? (
+                                        <Text type="secondary">
+                                          Chưa có dịch vụ nào từ hóa đơn hoàn thành.
+                                        </Text>
+                                      ) : (
+                                        <Flex vertical gap="small">
+                                          {patient.registeredServices.map((service) => (
+                                            <div
+                                              key={service.key}
+                                              className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3"
+                                            >
+                                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                                <div>
+                                                  <Text strong>{service.serviceName}</Text>
+                                                  <div className="mt-1">
+                                                    <Text type="secondary">
+                                                      Ngày làm: {formatDate(service.treatmentDate)}
+                                                    </Text>
+                                                  </div>
+                                                </div>
+                                                <Space size={[8, 8]} wrap>
+                                                  <Tag color="blue">SL: {service.quantity}</Tag>
+                                                  <Tag color={service.warrantyMonths > 0 ? 'gold' : 'default'}>
+                                                    Bảo hành: {getWarrantyLabel(service)}
+                                                  </Tag>
+                                                </Space>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </Flex>
+                                      )}
+                                    </div>
                                   </div>
                                   <Space>
                                     <Button

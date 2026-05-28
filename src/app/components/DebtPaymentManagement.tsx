@@ -22,6 +22,7 @@ import {
   CreditCardOutlined,
   HistoryOutlined,
   ReloadOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import type { TableColumnsType } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
@@ -45,6 +46,7 @@ interface DebtPaymentManagementProps {
 
 export const DebtPaymentManagement: React.FC<DebtPaymentManagementProps> = ({ isActive }) => {
   const [debts, setDebts] = useState<PatientDebt[]>([]);
+  const [debtSearch, setDebtSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientDebt | null>(null);
   const [loading, setLoading] = useState(false);
@@ -173,6 +175,36 @@ export const DebtPaymentManagement: React.FC<DebtPaymentManagementProps> = ({ is
 
     return { totalDebt, totalInvoiced, totalPaid, patientsWithDebt };
   }, [debts]);
+
+  const filteredDebts = useMemo(() => {
+    const normalizedSearch = debtSearch.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return debts;
+    }
+
+    return debts.filter((debt) => {
+      const hasPaymentMatch = debt.paymentHistory.some((payment) => {
+        const paymentMethodLabel = getPaymentMethodLabel(payment.method).toLowerCase();
+        const paymentDate = dayjs(payment.date).format('DD/MM/YYYY');
+
+        return (
+          paymentMethodLabel.includes(normalizedSearch) ||
+          paymentDate.includes(normalizedSearch) ||
+          payment.amount.toString().includes(normalizedSearch) ||
+          payment.notes?.toLowerCase().includes(normalizedSearch)
+        );
+      });
+
+      return (
+        debt.patientName.toLowerCase().includes(normalizedSearch) ||
+        debt.phoneNumber.toLowerCase().includes(normalizedSearch) ||
+        debt.totalInvoiced.toString().includes(normalizedSearch) ||
+        debt.totalPaid.toString().includes(normalizedSearch) ||
+        debt.remainingDebt.toString().includes(normalizedSearch) ||
+        hasPaymentMatch
+      );
+    });
+  }, [debtSearch, debts]);
 
   const columns: TableColumnsType<PatientDebt> = [
     {
@@ -309,10 +341,21 @@ export const DebtPaymentManagement: React.FC<DebtPaymentManagementProps> = ({ is
             </Button>
           }
         >
+          <div className="mb-4">
+            <Input
+              size="large"
+              allowClear
+              value={debtSearch}
+              onChange={(event) => setDebtSearch(event.target.value)}
+              placeholder="Tìm theo tên bệnh nhân, số điện thoại, công nợ, thanh toán..."
+              prefix={<SearchOutlined />}
+            />
+          </div>
+
           <Table
             loading={loading}
             columns={columns}
-            dataSource={debts}
+            dataSource={filteredDebts}
             rowKey="id"
             pagination={{
               pageSize: 10,
@@ -323,6 +366,11 @@ export const DebtPaymentManagement: React.FC<DebtPaymentManagementProps> = ({ is
             }}
             scroll={{ x: 1000 }}
             bordered
+            locale={{
+              emptyText: debtSearch.trim()
+                ? `Không tìm thấy công nợ phù hợp với từ khóa "${debtSearch.trim()}"`
+                : 'Chưa có dữ liệu công nợ',
+            }}
           />
         </Card>
 

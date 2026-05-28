@@ -1,6 +1,10 @@
 node_modules/
 dist/
 .vite/
+.cache/
+.temp/
+.tmp/
+coverage/
 
 # Logs
 npm-debug.log*
@@ -40,7 +44,14 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+*.bak
+*.orig
 
 # API binaries
 backend/PatientManage.Api/**/*.dll
+
+# Build archives
+dist.zip
+dist (2).zip
+*.zip
 

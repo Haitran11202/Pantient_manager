@@ -1,15 +1,12 @@
 import React, { useEffect } from 'react';
 import { Modal, Form, Input, InputNumber, Row, Col } from 'antd';
 
-const { TextArea } = Input;
-
 export interface PatientFormData {
   id?: string;
   fullName: string;
   phoneNumber: string;
   birthYear?: number;
   address?: string;
-  medicalHistory?: string;
 }
 
 interface PatientFormModalProps {
@@ -124,15 +121,6 @@ export const PatientFormModal: React.FC<PatientFormModalProps> = ({
             </Form.Item>
           </Col>
         </Row>
-
-        <Form.Item name="medicalHistory" label="Tiền Sử Bệnh">
-          <TextArea
-            placeholder="Nhập tiền sử bệnh, dị ứng, thuốc đang dùng, v.v."
-            rows={4}
-            showCount
-            maxLength={1000}
-          />
-        </Form.Item>
       </Form>
     </Modal>
   );

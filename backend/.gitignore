@@ -1,0 +1,46 @@
+bin/
+obj/
+out/
+publish/
+TestResults/
+
+# User-specific files
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+
+# IDE folders
+.vs/
+.vscode/
+.idea/
+
+# Logs
+logs/
+*.log
+
+# Environment and local secrets
+.env
+.env.*
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+
+# Database/runtime files
+*.db
+*.db-shm
+*.db-wal
+
+# Generated packages and archives
+*.nupkg
+*.snupkg
+*.zip
+
+# Coverage and temp files
+coverage/
+*.tmp
+*.temp
+*.bak
+*.orig
