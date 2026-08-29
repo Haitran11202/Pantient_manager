@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ConfigProvider, Button, Card, Space, Typography, Tabs, Flex, App as AntApp, message, Popconfirm, Form, Input, Tag } from 'antd';
-import { DashboardOutlined, UserAddOutlined, EditOutlined, FileTextOutlined, CalendarOutlined, DollarOutlined, CreditCardOutlined, DeleteOutlined, UserOutlined, LockOutlined, LogoutOutlined, SearchOutlined } from '@ant-design/icons';
+import { DashboardOutlined, UserAddOutlined, EditOutlined, FileTextOutlined, CalendarOutlined, DollarOutlined, CreditCardOutlined, DeleteOutlined, UserOutlined, LockOutlined, LogoutOutlined, SearchOutlined, InboxOutlined, WalletOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { PatientFormModal, PatientFormData } from './components/PatientFormModal';
 import { TreatmentInvoice } from './components/TreatmentInvoice';
@@ -8,6 +8,7 @@ import { DailyAppointments } from './components/DailyAppointments';
 import { ServicesPricing } from './components/ServicesPricing';
 import { DebtPaymentManagement } from './components/DebtPaymentManagement';
 import { DashboardOverview } from './components/DashboardOverview';
+import { ExpenseManagement } from './components/ExpenseManagement';
 import { api, ApiError, authStorage, PatientDto, PatientRegisteredServiceDto } from './api/client';
 
 const { Title, Text } = Typography;
@@ -428,6 +429,40 @@ export default function App() {
                     </span>
                   ),
                   children: <DebtPaymentManagement isActive={activeTab === 'debt'} />,
+                },
+                {
+                  key: 'material-expenses',
+                  label: (
+                    <span>
+                      <InboxOutlined className="mr-2" />
+                      Chi Phí Vật Liệu
+                    </span>
+                  ),
+                  children: (
+                    <ExpenseManagement
+                      category="materials"
+                      title="Chi Phí Vật Liệu"
+                      description="Nhập và theo dõi chi phí vật liệu của phòng khám"
+                      isActive={activeTab === 'material-expenses'}
+                    />
+                  ),
+                },
+                {
+                  key: 'other-expenses',
+                  label: (
+                    <span>
+                      <WalletOutlined className="mr-2" />
+                      Chi Phí Khác
+                    </span>
+                  ),
+                  children: (
+                    <ExpenseManagement
+                      category="others"
+                      title="Chi Phí Khác"
+                      description="Nhập và theo dõi các khoản chi phí phát sinh khác"
+                      isActive={activeTab === 'other-expenses'}
+                    />
+                  ),
                 },
               ]}
             />

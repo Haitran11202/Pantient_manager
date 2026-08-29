@@ -1,6 +1,23 @@
 export type AppointmentStatus = 'waiting' | 'completed' | 'cancelled';
 export type InvoiceStatus = 'draft' | 'completed' | 'cancelled';
 export type PaymentMethod = 'cash' | 'bank_transfer' | 'credit_card';
+export type ExpenseCategory = 'materials' | 'others';
+
+export interface ExpenseDto {
+  id: string;
+  quantity: number;
+  name: string;
+  unitPrice: number;
+  createdDate: string;
+  totalAmount: number;
+}
+
+export interface ExpensePayloadDto {
+  quantity: number;
+  name: string;
+  unitPrice: number;
+  createdDate: string;
+}
 
 export interface PatientDto {
   id: string;
@@ -278,6 +295,43 @@ export const api = {
     request<void>(`/api/debts/${patientId}/payments`, { method: 'POST', body: JSON.stringify(payload) }),
 
   getDashboardSummary: (date: string) => request<DashboardSummaryDto>(`/api/dashboard?date=${date}`),
+
+  getExpenses: (category: ExpenseCategory) =>
+    request<ExpenseDto[]>(`/api/v1/expenses/${category}`),
+  createExpense: (category: ExpenseCategory, payload: ExpensePayloadDto) =>
+    request<ExpenseDto>(`/api/v1/expenses/${category}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  deleteExpense: (category: ExpenseCategory, id: string) =>
+    request<void>(`/api/v1/expenses/${category}/${id}`, { method: 'DELETE' }),
+  downloadExpenseReport: async (
+    category: ExpenseCategory,
+    fromDate?: string,
+    toDate?: string
+  ) => {
+    const params = new URLSearchParams();
+    if (fromDate) params.set('fromDate', fromDate);
+    if (toDate) params.set('toDate', toDate);
+
+    const query = params.toString();
+    const token = authStorage.getToken();
+    const response = await fetch(`${API_BASE_URL}/api/v1/expenses/${category}/excel${query ? `?${query}` : ''}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+
+      if (response.status === 401) {
+        authStorage.clearToken();
+      }
+
+      throw new ApiError(parseErrorMessage(text, response.status), response.status);
+    }
+
+    return response.blob();
+  },
 
   downloadRevenueReport: async (fromDate?: string, toDate?: string) => {
     const params = new URLSearchParams();
